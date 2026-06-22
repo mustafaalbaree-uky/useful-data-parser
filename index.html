@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Parser</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #5b9dff;
+    --accent2: #3a7bd5;
+  }
+  :root.light {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --panel2: #e9ecf1;
+    --border: #cdd2db;
+    --text: #1a1d23;
+    --muted: #5a6370;
+    --accent: #2563eb;
+    --accent2: #1d4ed8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    line-height: 1.5;
+  }
+  /* header */
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .how-to-btn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .how-to-btn:hover { color: var(--text); background: var(--border); }
+  /* inputs stack */
+  .input-stack { display: flex; flex-direction: column; gap: 12px; }
+  .input-block { display: flex; flex-direction: column; gap: 6px; }
+  .input-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .paste-btn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .paste-btn:hover { color: var(--text); background: var(--border); }
+  textarea {
+    width: 100%;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s;
+  }
+  textarea:focus { border-color: var(--accent2); }
+  #input { min-height: 180px; }
+  #coordInput { min-height: 100px; }
+  /* inline fields row */
+  .fields-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .field-block { display: flex; flex-direction: column; gap: 6px; }
+  .field-block .input-label { justify-content: flex-start; }
+  .field-block input[type=text], .field-block select {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 11px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .field-block input[type=text]:focus, .field-block select:focus { border-color: var(--accent2); }
+  .field-block input[type=text] { width: 110px; }
+  .field-block select { width: 120px; }
+  .check-block { display: flex; flex-direction: column; gap: 6px; }
+  .check-block .input-label { justify-content: flex-start; }
+  .check-inner {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 7px; padding: 8px 11px;
+    cursor: pointer; user-select: none;
+  }
+  .check-inner input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent2); cursor: pointer; }
+  .check-inner span { font-size: 13px; }
+  /* divider */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+  /* primary action */
+  .btn-primary {
+    width: 100%;
+    background: var(--accent2);
+    color: #fff;
+    border: none;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-primary:hover { background: var(--accent); }
+  /* output */
+  .output-section { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    overflow-x: auto;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; white-space: nowrap; }
+  th { background: var(--panel2); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+  tr:nth-child(even) td { background: var(--panel2); }
+  td.copy-cell { border-left: none; padding: 4px 8px; }
+  th.copy-col { border-left: none; width: 1px; }
+  .empty { color: var(--muted); font-style: italic; padding: 16px; text-align: center; font-size: 13px; }
+  .btn-copy-clear {
+    width: 100%;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 13px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-copy-clear:hover { background: var(--border); }
+  .secondary-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-sec {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .btn-sec:hover { color: var(--text); background: var(--border); }
+  .row-copy {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 5px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .row-copy:hover { background: var(--border); color: var(--text); }
+  /* modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    max-width: 540px;
+    width: 90%;
+    position: relative;
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 16px; }
+  .modal ol { padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; color: var(--text); }
+  .modal ol li { line-height: 1.6; }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    background: none; border: none; color: var(--muted);
+    font-size: 20px; cursor: pointer; line-height: 1;
+  }
+  .modal-close:hover { color: var(--text); }
+  /* theme toggle */
+  .theme-toggle {
+    position: fixed;
+    bottom: 18px;
+    right: 18px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .15s, color .15s;
+  }
+  .theme-toggle:hover { color: var(--text); background: var(--border); }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Data Parser</h1>
+    <button class="how-to-btn" onclick="document.getElementById('howToModal').classList.add('open')">How to use</button>
+  </div>
+
+  <div class="input-stack">
+
+    <div class="input-block">
+      <div class="input-label">
+        <span>Report Text</span>
+        <button class="paste-btn" onclick="pasteReport()">Paste from clipboard</button>
+      </div>
+      <textarea id="input" placeholder="Paste report text here..."></textarea>
+    </div>
+
+    <div class="input-block">
+      <div class="input-label">
+        <span>Coordinates</span>
+        <button class="paste-btn" onclick="pasteCoord()">Paste from clipboard</button>
+      </div>
+      <textarea id="coordInput" placeholder="Paste DEG/MIN block here..."></textarea>
+    </div>
+
+    <div class="fields-row">
+      <div class="field-block">
+        <div class="input-label">Page #</div>
+        <input type="text" id="pageNum" placeholder="e.g. 257">
+      </div>
+      <div class="check-block">
+        <div class="input-label">Has Diagram?</div>
+        <label class="check-inner">
+          <input type="checkbox" id="hasDiagram">
+          <span>Yes</span>
+        </label>
+      </div>
+      <div class="field-block">
+        <div class="input-label">Is Intersection?</div>
+        <select id="isIntersection">
+          <option value="">N/A</option>
+          <option value="Y">Y</option>
+          <option value="N">N</option>
+          <option value="?">?</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <button class="btn-primary" onclick="parseAndAdd()">Parse Input</button>
+
+  </div>
+
+  <div class="output-section">
+    <div class="panel">
+      <table id="outTable">
+        <thead>
+          <tr>
+            <th>Page #</th>
+            <th>Diagram?</th>
+            <th>Coordinates</th>
+            <th>Intersection?</th>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Time</th>
+            <th>Collision Type</th>
+            <th>Weather/Road</th>
+            <th>Injuries</th>
+            <th>Units</th>
+            <th class="copy-col"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td class="empty" colspan="12">No rows yet — fill in the fields above and click Parse.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <button class="btn-copy-clear" onclick="copyAndClearAll()">Copy &amp; Clear</button>
+    <div class="secondary-row">
+      <button class="btn-sec" onclick="clearInput()">Clear Input</button>
+      <button class="btn-sec" onclick="clearTable()">Clear Table</button>
+      <button class="btn-sec" onclick="copyTSV()">Copy Table (TSV)</button>
+      <button class="btn-sec" onclick="downloadCSV()">Download CSV</button>
+    </div>
+  </div>
+
+<!-- How to use modal -->
+<div class="modal-backdrop" id="howToModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('howToModal').classList.remove('open')">&times;</button>
+    <h2>How to use</h2>
+    <ol>
+      <li>
+        <strong>Report Text</strong> — in the PDF, highlight from <em>"Kentucky Uniform Police Traffic Collision Report"</em> down to <em>"School Bus Related &nbsp; 03 – Not Applicable"</em>, then paste into the Report Text box.
+      </li>
+      <li>
+        <strong>Coordinates</strong> — highlight from the first <em>"DEG:"</em> label down through the last digit of the bottom <em>"MIN"</em> value, then paste into the Coordinates box.
+      </li>
+      <li>
+        <strong>Page #</strong> — type the page number for this report.
+      </li>
+      <li>
+        <strong>Is Intersection?</strong> — choose Y, N, ?, or N/A from the dropdown.
+      </li>
+      <li>
+        <strong>Has Diagram?</strong> — check the box if the report includes a diagram.
+      </li>
+      <li>
+        Click <strong>Parse Input</strong> — a row appears in the output table below.
+      </li>
+      <li>
+        Click <strong>Copy &amp; Clear</strong> — the row is copied to your clipboard as tab-separated values, ready to paste into Excel. The form and table clear for the next report.
+      </li>
+    </ol>
+  </div>
+</div>
+
+<!-- Theme toggle -->
+<button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">☀️ Light mode</button>
+
+<script>
+const LS_KEY = 'dp_state_v2';
+
+function starred(text){
+  const out=[]; const re=/\*([^*]+)\*/g; let m;
+  while((m=re.exec(text))!==null) out.push(m[1].trim());
+  return out;
+}
+function stripCode(s){return s.replace(/^\s*\d{1,3}\s*-\s*/,'').trim();}
+function tidyType(s){s=stripCode(s).toLowerCase();return s?s[0].toUpperCase()+s.slice(1):'';}
+function tidyWord(s){s=stripCode(s).toLowerCase().trim();return s?s[0].toUpperCase()+s.slice(1):'';}
+function dayOfWeek(ds){
+  const p=ds.split('/');if(p.length!==3)return'';
+  const mo=parseInt(p[0],10),da=parseInt(p[1],10),yr=parseInt(p[2],10);
+  if(!mo||!da||!yr)return'';
+  const d=new Date(yr,mo-1,da);if(isNaN(d))return'';
+  return['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+}
+function normDate(ds){
+  const p=ds.split('/');if(p.length!==3)return ds;
+  return`${parseInt(p[0],10)}/${parseInt(p[1],10)}/${p[2]}`;
+}
+function parseCoordText(raw){
+  const nums=raw.split('\n').map(l=>l.trim()).filter(l=>/^-?\d+(\.\d+)?$/.test(l)).map(Number);
+  if(nums.length<4)return'';
+  const[latDeg,lonDeg,latMin,lonMin]=nums;
+  const pad=n=>{const[w,f]=n.toString().split('.');return w.padStart(2,'0')+(f?'.'+f:'');};
+  return`${latDeg} ${pad(latMin)}, -${lonDeg} ${pad(lonMin)}`;
+}
+function parseReport(raw){
+  const stars=starred(raw);
+  const text=raw.replace(/\*/g,' ');
+  const lines=text.split('\n').map(l=>l.trim());
+  const r={date:'',day:'',time:'',type:'',weatherRoad:'',injuries:'',units:''};
+  const dateRe=/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/,timeRe=/\b(\d{1,2}:\d{2})\b/;
+  for(const l of lines){if(!r.date){const dm=l.match(dateRe);if(dm)r.date=dm[1];}}
+  for(const l of lines){if(!r.time){const tm=l.match(timeRe);if(tm)r.time=tm[1];}}
+  if(r.date){r.day=dayOfWeek(r.date);r.date=normDate(r.date);}
+  const dl=lines.find(l=>/\d+\.\d{3}/.test(l)&&/MPH/i.test(l));
+  if(dl){const cl=dl.replace(/\d+\.\d{3}/,' ').replace(/[()]/g,' ');const ints=cl.match(/\b\d+\b/g)||[];if(ints.length>=3){r.injuries=ints[0];r.units=ints[2];}}
+  const sn=stars.find(s=>/^\d+$/.test(s.trim()));if(sn)r.injuries=sn.trim();
+  const typeKw=/(REAR|SIDESWIPE|ANGLE|HEAD ON|HEAD-ON|REAR END|REAR-END|SINGLE VEHICLE|OPPOSING|TURN|BACKING)/i;
+  const ts=stars.find(s=>typeKw.test(s));
+  if(ts){r.type=tidyType(ts);}else{
+    const tl=lines.find(l=>/^\d{1,3}\s*-\s*/.test(l)&&typeKw.test(l));
+    if(tl){const m=tl.match(/^\d{1,3}\s*-\s*([A-Za-z][A-Za-z \-]+)/);if(m)r.type=tidyType(m[1]);}
+  }
+  const cw=/(DRY|WET|ICE|ICY|SNOW|SLUSH|MUDDY|OIL|WATER|STANDING)/i;
+  const ww=/(CLEAR|CLOUDY|RAIN|SNOW|FOG|SLEET|HAIL|WIND|SMOKE|SEVERE)/i;
+  let road='',weather='';
+  const ri=lines.findIndex(l=>cw.test(l)&&/-/.test(l)&&/(ASPHALT|CONCRETE|GRAVEL|DRY|WET)/i.test(l));
+  if(ri!==-1){
+    const chunks=lines[ri].split(/\s{2,}|(?=\d{1,3}\s*-)/).map(s=>s.trim()).filter(Boolean);
+    for(const c of chunks){if(cw.test(c))road=tidyWord(c.match(cw)[0]);}
+    if(!road){const rm=lines[ri].match(cw);if(rm)road=tidyWord(rm[0]);}
+  }
+  const wl=lines.find(l=>ww.test(l)&&/\d{1,3}\s*-/.test(l));
+  if(wl){const wm=wl.match(ww);if(wm)weather=tidyWord(wm[0]);}
+  const sw=stars.find(s=>ww.test(s));const sr=stars.find(s=>cw.test(s));
+  if(sw)weather=tidyWord(sw.match(ww)[0]);
+  if(sr)road=tidyWord(sr.match(cw)[0]);
+  if(weather||road)r.weatherRoad=[weather,road].filter(Boolean).join('/');
+  return r;
+}
+
+function getRows(){
+  return[...document.querySelectorAll('#outTable tbody tr')]
+    .filter(r=>!r.querySelector('.empty'))
+    .map(r=>[...r.querySelectorAll('td:not(.copy-cell)')].map(c=>c.textContent));
+}
+function renderRows(rows){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  if(!rows.length){
+    tbody.innerHTML='<tr><td class="empty" colspan="12">No rows yet — fill in the fields above and click Parse.</td></tr>';
+    return;
+  }
+  for(const row of rows){
+    const tr=document.createElement('tr');
+    row.forEach(v=>{const td=document.createElement('td');td.textContent=v||'';tr.appendChild(td);});
+    const copyTd=document.createElement('td');copyTd.className='copy-cell';
+    const btn=document.createElement('button');btn.className='row-copy';btn.textContent='Copy';
+    btn.onclick=()=>copyRow(btn);copyTd.appendChild(btn);tr.appendChild(copyTd);
+    tbody.appendChild(tr);
+  }
+}
+function copyRow(btn){
+  const tr=btn.closest('tr');
+  const vals=[...tr.querySelectorAll('td:not(.copy-cell)')].map(c=>c.textContent);
+  navigator.clipboard.writeText(vals.join('\t'));
+  const orig=btn.textContent;btn.textContent='Copied!';
+  setTimeout(()=>btn.textContent=orig,1200);
+}
+function saveState(){
+  try{
+    localStorage.setItem(LS_KEY,JSON.stringify({
+      input:document.getElementById('input').value,
+      coordInput:document.getElementById('coordInput').value,
+      pageNum:document.getElementById('pageNum').value,
+      hasDiagram:document.getElementById('hasDiagram').checked,
+      isIntersection:document.getElementById('isIntersection').value,
+      rows:getRows()
+    }));
+  }catch(e){}
+}
+function loadState(){
+  try{
+    const s=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    if(s.input)document.getElementById('input').value=s.input;
+    if(s.coordInput)document.getElementById('coordInput').value=s.coordInput;
+    if(s.pageNum)document.getElementById('pageNum').value=s.pageNum;
+    if(s.hasDiagram)document.getElementById('hasDiagram').checked=s.hasDiagram;
+    if(s.isIntersection)document.getElementById('isIntersection').value=s.isIntersection;
+    if(s.rows&&s.rows.length)renderRows(s.rows);
+  }catch(e){}
+  // restore saved theme
+  if(localStorage.getItem('dp_theme')==='light') applyTheme('light');
+}
+
+function applyTheme(mode){
+  const btn=document.getElementById('themeBtn');
+  if(mode==='light'){
+    document.documentElement.classList.add('light');
+    btn.textContent='🌙 Dark mode';
+  } else {
+    document.documentElement.classList.remove('light');
+    btn.textContent='☀️ Light mode';
+  }
+}
+function toggleTheme(){
+  const isLight=document.documentElement.classList.contains('light');
+  const next=isLight?'dark':'light';
+  applyTheme(next);
+  localStorage.setItem('dp_theme',next);
+}
+
+function parseAndAdd(){
+  const raw=document.getElementById('input').value;
+  if(!raw.trim())return;
+  const r=parseReport(raw);
+  const coords=parseCoordText(document.getElementById('coordInput').value);
+  const pageNum=document.getElementById('pageNum').value.trim();
+  const hasDiagram=document.getElementById('hasDiagram').checked?'Y':'';
+  const isInt=document.getElementById('isIntersection').value;
+  const rows=getRows();
+  rows.push([pageNum,hasDiagram,coords,isInt,r.date,r.day,r.time,r.type,r.weatherRoad,r.injuries,r.units]);
+  renderRows(rows);
+  saveState();
+}
+async function pasteReport(){
+  try{
+    const text=await navigator.clipboard.readText();
+    if(!text.trim())return;
+    document.getElementById('input').value=text;
+    saveState();
+  }catch(e){alert('Clipboard access denied — paste manually.');}
+}
+async function pasteCoord(){
+  try{
+    const text=await navigator.clipboard.readText();
+    if(!text.trim())return;
+    document.getElementById('coordInput').value=text;
+    saveState();
+  }catch(e){alert('Clipboard access denied — paste manually.');}
+}
+function clearInput(){
+  document.getElementById('input').value='';
+  document.getElementById('coordInput').value='';
+  document.getElementById('pageNum').value='';
+  document.getElementById('hasDiagram').checked=false;
+  document.getElementById('isIntersection').value='';
+  saveState();
+}
+function clearTable(){renderRows([]);saveState();}
+function tableToTSV(){return getRows().map(r=>r.join('\t')).join('\n');}
+function copyTSV(){navigator.clipboard.writeText(tableToTSV());}
+function copyAndClearAll(){
+  const tsv=tableToTSV();
+  if(!tsv)return;
+  navigator.clipboard.writeText(tsv).then(()=>{
+    renderRows([]);
+    clearInput();
+  });
+}
+function downloadCSV(){
+  const rows=getRows();
+  const csv=rows.map(r=>r.map(c=>'"'+c.replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='export.csv';a.click();
+}
+
+document.getElementById('input').addEventListener('input',saveState);
+document.getElementById('coordInput').addEventListener('input',saveState);
+document.getElementById('pageNum').addEventListener('input',saveState);
+document.getElementById('hasDiagram').addEventListener('change',saveState);
+document.getElementById('isIntersection').addEventListener('change',saveState);
+window.addEventListener('load',loadState);
+</script>
+</body>
+</html>
