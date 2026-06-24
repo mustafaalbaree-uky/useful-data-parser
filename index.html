@@ -716,7 +716,8 @@ function copyAndClearAll() {
     // clear everything except the page number, which the user wants to keep
     const keepPage = document.getElementById('pageNum').value;
     clearInput();
-    document.getElementById('pageNum').value = keepPage;
+    const n = parseInt(keepPage, 10);
+    document.getElementById('pageNum').value = isNaN(n) ? keepPage : String(n + 4);
     saveState();
   });
 }
