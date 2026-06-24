@@ -950,6 +950,11 @@ function parseUnitPage(raw) {
   let dir = '';
   const dm = raw.match(/\bON\s+(NORTH|SOUTH|EAST|WEST)\b/i);
   if (dm) dir = UNIT_DIR_MAP[dm[1].toUpperCase()] || '';
+  if (!dir) {
+    // Fallback: last word on the clock-position line (e.g. "12 - 12 O'CLOCK MINOR SOUTH")
+    const cm = raw.match(/\b\d+\s*-\s*\d+\s+O'CLOCK[^\n]*(NORTH|SOUTH|EAST|WEST)\b/i);
+    if (cm) dir = UNIT_DIR_MAP[cm[1].toUpperCase()] || '';
+  }
 
   // Pre-collision action (section A) — the first action code before a unit type code
   let action = '';
@@ -991,14 +996,13 @@ function inferNotes(units) {
       if (a.includes('LEFT TURN')) return `U${u.unitNum} failed to yield to ${otherStr}`;
       return `U${u.unitNum} ran a red light`;
     }
+    if (codes.includes('13') || a.includes('CHANGING LANES')) return `U${u.unitNum} improper lane change`;
     if (codes.includes('08')) { // failed to yield
       if (a.includes('LEFT TURN')) return `U${u.unitNum} failed to yield to ${otherStr}`;
       return `U${u.unitNum} failed to yield`;
     }
-    if (codes.includes('13') || a.includes('CHANGING LANES')) return `U${u.unitNum} improper lane change`;
     if (a.includes('BACKING')) return `U${u.unitNum} backed into ${otherStr}`;
     if (a.includes('ENTERING OR EXITING')) return `U${u.unitNum} entered roadway from driveway`;
-    if (codes.includes('14') && a.includes('STRAIGHT')) return `U${u.unitNum} inattention (rear end)`;
     if (codes.includes('18')) return `U${u.unitNum} not under proper control`;
   }
   return '';
