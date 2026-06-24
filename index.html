@@ -173,6 +173,16 @@
     width: 110px;
   }
   .field-block input[type=text]:focus { border-color: var(--accent2); }
+  .check-block { display: flex; flex-direction: column; gap: 6px; }
+  .check-block .input-label { justify-content: flex-start; }
+  .check-inner {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 7px; padding: 8px 11px;
+    cursor: pointer; user-select: none;
+  }
+  .check-inner input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent2); cursor: pointer; }
+  .check-inner span { font-size: 13px; }
   .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   .btn-primary {
     width: 100%;
@@ -325,6 +335,13 @@
         <div class="input-label">Page #</div>
         <input type="text" id="pageNum" placeholder="e.g. 257">
       </div>
+      <div class="check-block">
+        <div class="input-label">Has Diagram?</div>
+        <label class="check-inner">
+          <input type="checkbox" id="hasDiagram">
+          <span>Yes</span>
+        </label>
+      </div>
     </div>
 
     <hr class="divider">
@@ -353,11 +370,12 @@
             <th>Notes</th>
             <th>PDF Page</th>
             <th>GPS</th>
+            <th>Has Diagram?</th>
             <th class="copy-col"></th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td class="empty" colspan="17">No rows yet — fill in the fields above and click Parse.</td></tr>
+          <tr><td class="empty" colspan="18">No rows yet — fill in the fields above and click Parse.</td></tr>
         </tbody>
       </table>
     </div>
@@ -545,7 +563,7 @@ function parseReport(raw) {
 }
 
 // ── table ────────────────────────────────────────────────────────────────────
-const COL_COUNT = 16; // data columns (excluding copy-cell)
+const COL_COUNT = 17; // data columns (excluding copy-cell)
 
 function getRows() {
   return [...document.querySelectorAll('#outTable tbody tr')]
@@ -584,6 +602,7 @@ function saveState() {
       coordInput: document.getElementById('coordInput').value,
       intersection: document.getElementById('intersectionInput').value,
       pageNum: document.getElementById('pageNum').value,
+      hasDiagram: document.getElementById('hasDiagram').checked,
       rows: getRows()
     }));
   } catch(e) {}
@@ -595,6 +614,7 @@ function loadState() {
     if (s.coordInput) document.getElementById('coordInput').value = s.coordInput;
     if (s.intersection) document.getElementById('intersectionInput').value = s.intersection;
     if (s.pageNum) document.getElementById('pageNum').value = s.pageNum;
+    if (s.hasDiagram) document.getElementById('hasDiagram').checked = s.hasDiagram;
     if (s.rows && s.rows.length) renderRows(s.rows);
   } catch(e) {}
   if (localStorage.getItem('dp_theme') === 'light') applyTheme('light');
@@ -620,13 +640,14 @@ function parseAndAdd() {
   const coords = parseCoordText(document.getElementById('coordInput').value);
   const intersection = document.getElementById('intersectionInput').value.trim();
   const pageNum = document.getElementById('pageNum').value.trim();
+  const hasDiagram = document.getElementById('hasDiagram').checked ? 'Y' : '';
 
   // remember intersection
   saveIntersection(intersection);
 
-  // columns: intersection | "" | date | dow | time | type | weatherRoad | "" | "" | "" | "" | injuries | units | "" | pageNum | coords
+  // columns: intersection | "" | date | dow | time | type | weatherRoad | "" | "" | "" | "" | injuries | units | "" | pageNum | coords | hasDiagram
   const rows = getRows();
-  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, '', pageNum, coords]);
+  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, '', pageNum, coords, hasDiagram]);
   renderRows(rows);
   saveState();
 }
@@ -643,6 +664,7 @@ function clearInput() {
   document.getElementById('coordInput').value = '';
   document.getElementById('intersectionInput').value = '';
   document.getElementById('pageNum').value = '';
+  document.getElementById('hasDiagram').checked = false;
   saveState();
 }
 function clearTable() { renderRows([]); saveState(); }
@@ -663,6 +685,7 @@ function downloadCSV() {
 document.getElementById('input').addEventListener('input', saveState);
 document.getElementById('coordInput').addEventListener('input', saveState);
 document.getElementById('pageNum').addEventListener('input', saveState);
+document.getElementById('hasDiagram').addEventListener('change', saveState);
 window.addEventListener('load', loadState);
 </script>
 </body>
