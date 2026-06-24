@@ -598,6 +598,11 @@ function parseReport(raw) {
   if (r.date) { r.day = dayOfWeek(r.date); r.date = normDate(r.date); }
   const dl = lines.find(l => /\d+\.\d{3}/.test(l) && /MPH/i.test(l));
   if (dl) { const cl = dl.replace(/\d+\.\d{3}/,' ').replace(/[()]/g,' '); const ints = cl.match(/\b\d+\b/g)||[]; if (ints.length >= 3) { r.injuries = ints[0]; r.units = ints[2]; } }
+  else {
+    // fallback: MPH line with a round (non-decimal) speed, e.g. "0 0 2 NO NO 5  MPH"
+    const dl2 = lines.find(l => /MPH/i.test(l) && /\b\d+\b/.test(l));
+    if (dl2) { const cl = dl2.replace(/\b\d+\s*MPH/i,' ').replace(/[()]/g,' '); const ints = cl.match(/\b\d+\b/g)||[]; if (ints.length >= 3) { r.injuries = ints[0]; r.units = ints[2]; } }
+  }
   const sn = stars.find(s => /^\d+$/.test(s.trim())); if (sn) r.injuries = sn.trim();
   const typeKw = /(REAR|SIDESWIPE|ANGLE|HEAD ON|HEAD-ON|REAR END|REAR-END|SINGLE VEHICLE|OPPOSING|TURN|BACKING)/i;
   const ts = stars.find(s => typeKw.test(s));
