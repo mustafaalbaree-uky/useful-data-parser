@@ -719,9 +719,10 @@ function copyAndClearAll() {
     renderRows([]);
     // clear everything except the page number, which the user wants to keep
     const keepPage = document.getElementById('pageNum').value;
+    const step = document.getElementById('hasDiagram').checked ? 5 : 4;
     clearInput();
     const n = parseInt(keepPage, 10);
-    document.getElementById('pageNum').value = isNaN(n) ? keepPage : String(n + 4);
+    document.getElementById('pageNum').value = isNaN(n) ? keepPage : String(n + step);
     saveState();
   });
 }
