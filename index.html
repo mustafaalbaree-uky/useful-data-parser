@@ -58,13 +58,17 @@
     align-items: center;
     justify-content: space-between;
   }
+  .input-label.with-paste {
+    justify-content: flex-start;
+    gap: 12px;
+  }
   .paste-btn {
     background: var(--panel2);
     border: 1px solid var(--border);
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
-    padding: 3px 10px;
+    padding: 5px 14px;
     border-radius: 5px;
     cursor: pointer;
     white-space: nowrap;
@@ -341,7 +345,7 @@
   <div class="input-stack">
 
     <div class="input-block">
-      <div class="input-label">
+      <div class="input-label with-paste">
         <span>Report Text</span>
         <button class="paste-btn" onclick="pasteReport()">Paste from clipboard</button>
       </div>
@@ -349,7 +353,7 @@
     </div>
 
     <div class="input-block">
-      <div class="input-label">
+      <div class="input-label with-paste">
         <span>Coordinates</span>
         <button class="paste-btn" onclick="pasteCoord()">Paste from clipboard</button>
       </div>
