@@ -934,10 +934,17 @@ function clearUnitMode() {
 }
 
 function parseUnitPage(raw) {
-  // Unit number — look for "UNIT # X" or "UNIT #X" or just "\n1 " / "\n2 " in header area
+  // Unit number — the header says "UNIT # TOWED? # OCCUPANTS" and the actual
+  // number appears on a later line like "1 NO 1" or "2 YES - ROBERTS TOWING 1"
   let unitNum = null;
-  const um = raw.match(/UNIT\s*#\s*(\d+)/i);
-  if (um) unitNum = parseInt(um[1], 10);
+  // First try: UNIT # followed immediately by a digit (some PDFs paste it inline)
+  const um1 = raw.match(/UNIT\s*#\s*(\d+)/i);
+  if (um1 && !/TOWED|OCCUP/i.test(raw.slice(um1.index, um1.index + 30))) unitNum = parseInt(um1[1], 10);
+  // Main try: line starting with a single digit followed by YES or NO (the TOWED? column)
+  if (!unitNum) {
+    const um2 = raw.match(/^\s*(\d)\s+(?:YES|NO)\b/im);
+    if (um2) unitNum = parseInt(um2[1], 10);
+  }
 
   // Travel direction: "ON NORTH/SOUTH/EAST/WEST"
   let dir = '';
