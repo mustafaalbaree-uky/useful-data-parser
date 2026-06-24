@@ -539,8 +539,18 @@ tr.draft-row td:first-child::before { content:"DRAFT "; font-size:10px; font-wei
     <div style="display:flex; flex-direction:column; gap:10px;">
       <label style="font-size:12px; font-weight:600; color:var(--muted);">Select PDF file (single entry or batch):</label>
       <input type="file" id="pdfFileInput" accept=".pdf" style="font-size:13px; color:var(--text);">
-      <button class="btn-primary" onclick="processPdf()">Extract &amp; Parse PDF</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn-primary" style="flex:1;" onclick="processPdf()">Extract &amp; Parse PDF</button>
+        <button class="btn-sec" onclick="diagnosePdf()">Diagnose</button>
+      </div>
       <div id="pdfStatus" style="font-size:12px; color:var(--muted); min-height:18px;"></div>
+      <div id="pdfDiagBlock" style="display:none; flex-direction:column; gap:6px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;">Diagnostic output</span>
+          <button class="btn-sec" style="font-size:11px; padding:2px 10px;" onclick="copyDiag()">Copy</button>
+        </div>
+        <textarea id="pdfDiagOutput" readonly style="font-family:monospace; font-size:11px; min-height:200px; resize:vertical; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px;"></textarea>
+      </div>
     </div>
   </div>
 
@@ -1243,6 +1253,88 @@ async function processPdf() {
   }, { once: false });
 
   status.textContent = `Done — ${newRows.length} draft row${newRows.length !== 1 ? 's' : ''} added. Click a row to mark it verified.`;
+}
+
+async function diagnosePdf() {
+  const file = document.getElementById('pdfFileInput').files[0];
+  if (!file) { alert('Select a PDF file first.'); return; }
+  const status = document.getElementById('pdfStatus');
+  status.textContent = 'Running diagnostics…';
+
+  const url = URL.createObjectURL(file);
+  let pdf;
+  try { pdf = await pdfjsLib.getDocument({ url }).promise; }
+  catch(e) { status.textContent = 'Error: ' + e.message; URL.revokeObjectURL(url); return; }
+
+  const lines = [`=== PDF DIAGNOSTIC ===`, `File: ${file.name}`, `Pages: ${pdf.numPages}`, ``];
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    status.textContent = `Diagnosing page ${i} of ${pdf.numPages}…`;
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    const text = reconstructText(tc.items);
+    const annotations = await page.getAnnotations();
+    const type = classifyPage(text);
+    pages.push({ pdfPageNum: i, text, annotations, type });
+    const preview = text.split('\n').slice(0, 5).map(l => '  | ' + l).join('\n');
+    const widgets = annotations.filter(a => a.subtype === 'Widget' && a.fieldValue);
+    lines.push(`--- Page ${i} → ${type} ---`);
+    lines.push(`Text items: ${tc.items.length}  |  Widget annotations: ${widgets.length}`);
+    lines.push(`First 5 lines of reconstructed text:`);
+    lines.push(preview || '  (empty)');
+    if (widgets.length) {
+      lines.push(`Widget values: ${widgets.map(w => JSON.stringify(w.fieldValue)).join(', ')}`);
+    }
+    lines.push('');
+  }
+  URL.revokeObjectURL(url);
+
+  // group into reports
+  const reports = [];
+  let cur = null;
+  for (const p of pages) {
+    if (p.type === 'MAIN') {
+      if (cur) reports.push(cur);
+      cur = { mainPage: p, unitPages: [], hasDiagram: false };
+    } else if (cur && p.type === 'UNIT') {
+      cur.unitPages.push(p);
+    } else if (cur) {
+      cur.hasDiagram = true;
+    }
+  }
+  if (cur) reports.push(cur);
+
+  lines.push(`=== PARSED RESULTS (${reports.length} entries found) ===`, '');
+  for (let ri = 0; ri < reports.length; ri++) {
+    const rep = reports[ri];
+    const r = parseReport(rep.mainPage.text);
+    const annotVals = rep.mainPage.annotations
+      .filter(a => a.subtype === 'Widget' && a.fieldValue)
+      .map(a => String(a.fieldValue)).join('\n');
+    const coords = parseCoordText(annotVals);
+    const parsedUnits = rep.unitPages.map(p => parseUnitPage(p.text)).filter(u => u.unitNum);
+    const notes = inferNotes(parsedUnits);
+    lines.push(`Entry ${ri + 1}  (main page ${rep.mainPage.pdfPageNum}, ${rep.unitPages.length} unit page(s)${rep.hasDiagram ? ', has diagram' : ''})`);
+    lines.push(`  date=${r.date||'?'}  dow=${r.day||'?'}  time=${r.time||'?'}`);
+    lines.push(`  type=${r.type||'?'}  weather/road=${r.weatherRoad||'?'}`);
+    lines.push(`  injuries=${r.injuries||'?'}  units=${r.units||'?'}`);
+    lines.push(`  GPS=${coords||'(not found)'}`);
+    for (const u of parsedUnits) {
+      lines.push(`  Unit ${u.unitNum}: dir=${u.overrideDir||'?'}  action=${u.action||'?'}  factors=[${u.factors.map(f=>f.code).join(',')||'none'}]`);
+    }
+    lines.push(`  notes="${notes}"`);
+    lines.push('');
+  }
+
+  const out = lines.join('\n');
+  document.getElementById('pdfDiagOutput').value = out;
+  document.getElementById('pdfDiagBlock').style.display = 'flex';
+  status.textContent = `Diagnostic complete — ${reports.length} entries detected. Copy the output below.`;
+}
+
+function copyDiag() {
+  const el = document.getElementById('pdfDiagOutput');
+  navigator.clipboard.writeText(el.value).catch(() => { el.select(); document.execCommand('copy'); });
 }
 
 document.getElementById('input').addEventListener('input', saveState);
