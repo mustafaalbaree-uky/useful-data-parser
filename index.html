@@ -92,6 +92,8 @@
   #coordInput { min-height: 100px; }
 
   /* intersection combobox */
+  .intersection-row { display: flex; gap: 12px; }
+  .intersection-row .input-block { flex: 1; min-width: 0; }
   .combo-wrap { position: relative; }
   .combo-wrap textarea {
     min-height: unset;
@@ -360,12 +362,20 @@
       <textarea id="coordInput" placeholder="Paste DEG/MIN block here..."></textarea>
     </div>
 
-    <div class="input-block">
-      <div class="input-label"><span>Intersection</span></div>
-      <div class="combo-wrap" id="comboWrap">
-        <textarea id="intersectionInput" placeholder="Type intersection name..." rows="1" autocomplete="off" oninput="onComboInput()" onfocus="openComboDropdown()" onclick="openComboDropdown()" onkeydown="onComboKey(event)"></textarea>
-        <button class="combo-arrow" type="button" onclick="toggleComboDropdown()" tabindex="-1">▾</button>
-        <div class="combo-dropdown" id="comboDropdown"></div>
+    <div class="intersection-row">
+      <div class="input-block">
+        <div class="input-label"><span>Intersection</span></div>
+        <div class="combo-wrap" id="comboWrap">
+          <textarea id="intersectionInput" placeholder="Type intersection name..." rows="1" autocomplete="off" oninput="onComboInput()" onfocus="openComboDropdown()" onclick="openComboDropdown()" onkeydown="onComboKey(event)"></textarea>
+          <button class="combo-arrow" type="button" onclick="toggleComboDropdown()" tabindex="-1">▾</button>
+          <div class="combo-dropdown" id="comboDropdown"></div>
+        </div>
+      </div>
+      <div class="input-block">
+        <div class="input-label"><span>Secondary Intersection</span></div>
+        <div class="combo-wrap">
+          <textarea id="secondaryInput" placeholder="Type secondary intersection (optional)..." rows="1" autocomplete="off" oninput="saveState()"></textarea>
+        </div>
       </div>
     </div>
 
@@ -643,6 +653,7 @@ function saveState() {
       input: document.getElementById('input').value,
       coordInput: document.getElementById('coordInput').value,
       intersection: document.getElementById('intersectionInput').value,
+      secondary: document.getElementById('secondaryInput').value,
       pageNum: document.getElementById('pageNum').value,
       hasDiagram: document.getElementById('hasDiagram').checked,
       rows: getRows()
@@ -655,6 +666,7 @@ function loadState() {
     if (s.input) document.getElementById('input').value = s.input;
     if (s.coordInput) document.getElementById('coordInput').value = s.coordInput;
     if (s.intersection) document.getElementById('intersectionInput').value = s.intersection;
+    if (s.secondary) document.getElementById('secondaryInput').value = s.secondary;
     if (s.pageNum) document.getElementById('pageNum').value = s.pageNum;
     if (s.hasDiagram) document.getElementById('hasDiagram').checked = s.hasDiagram;
     if (s.rows && s.rows.length) renderRows(s.rows);
@@ -681,15 +693,19 @@ function parseAndAdd() {
   const r = parseReport(raw);
   const coords = parseCoordText(document.getElementById('coordInput').value);
   const intersection = document.getElementById('intersectionInput').value.trim();
+  const secondary = document.getElementById('secondaryInput').value.trim();
   const pageNum = document.getElementById('pageNum').value.trim();
   const hasDiagram = document.getElementById('hasDiagram').checked ? 'Y' : '';
 
   // remember intersection
   saveIntersection(intersection);
 
-  // columns: intersection | "" | date | dow | time | type | weatherRoad | "" | "" | "" | "" | injuries | units | "" | pageNum | coords | hasDiagram
+  // notes describe both intersections when a secondary is given
+  const notes = secondary ? `"${intersection}" and "${secondary}"` : '';
+
+  // columns: intersection | "" | date | dow | time | type | weatherRoad | "" | "" | "" | "" | injuries | units | notes | pageNum | coords | hasDiagram
   const rows = getRows();
-  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, '', pageNum, coords, hasDiagram]);
+  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords, hasDiagram]);
   renderRows(rows);
   saveState();
 }
@@ -705,6 +721,7 @@ function clearInput() {
   document.getElementById('input').value = '';
   document.getElementById('coordInput').value = '';
   document.getElementById('intersectionInput').value = '';
+  document.getElementById('secondaryInput').value = '';
   document.getElementById('pageNum').value = '';
   document.getElementById('hasDiagram').checked = false;
   saveState();
