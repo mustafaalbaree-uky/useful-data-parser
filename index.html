@@ -154,7 +154,12 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 #pdfPagesWrap { display: none; margin-top: 20px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .pdf-pages-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel2); border-bottom: 1px solid var(--border); }
 .pdf-pages-title { flex: 1; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
-#pdfPagesContainer { max-height: 480px; overflow-y: auto; padding: 10px; background: var(--panel); }
+#pdfPagesContainer { max-height: 70vh; overflow-y: auto; padding: 10px; background: var(--panel); }
+.diagram-page-wrap { border: 2px solid var(--accent2); border-radius: 8px; overflow: hidden; margin-bottom: 12px; background: var(--panel); }
+.diagram-page-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--accent2); color: #fff; font-size: 12px; font-weight: 600; }
+.diagram-page-wrap canvas { display: block; max-width: 100%; }
+.diagram-page-wrap.diagram-fullscreen { position: fixed; inset: 0; z-index: 400; border-radius: 0; margin: 0; display: flex; flex-direction: column; }
+.diagram-page-wrap.diagram-fullscreen canvas { flex: 1; max-height: calc(100vh - 36px); object-fit: contain; width: 100%; }
 #pdfPagesWrap.pdf-fullscreen { position: fixed; inset: 0; z-index: 300; border-radius: 0; margin: 0; display: flex !important; flex-direction: column; }
 #pdfPagesWrap.pdf-fullscreen #pdfPagesContainer { max-height: none; flex: 1; }
 
@@ -316,14 +321,11 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         <div class="verify-fields" id="verifyFields"></div>
       </div>
       <div class="verify-right">
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="view-pdf-btn" onclick="viewInPdf()">View in PDF</button>
-          <button class="btn-sec" onclick="togglePdfFullscreen()" style="align-self:center;">⛶ Fullscreen</button>
-        </div>
         <div class="verify-panel">
           <div class="verify-panel-label">Supporting text</div>
           <div id="verifyNarrative"></div>
         </div>
+        <button class="view-pdf-btn" onclick="viewInPdf()" style="margin-top:10px;">View in PDF</button>
       </div>
     </div>
     <!-- PDF viewer — full width below both columns -->
@@ -936,12 +938,31 @@ async function viewInPdf() {
   for (let p = startPage; p <= endPage; p++) {
     try {
       const page = await SESSION.pdf.getPage(p);
+      const tc = await page.getTextContent();
+      const isDiagram = tc.items.length === 0;
       const viewport = page.getViewport({ scale: 1.5 });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width; canvas.height = viewport.height;
-      canvas.style.maxWidth = '100%'; canvas.style.display = 'block'; canvas.style.marginBottom = '8px';
-      container.appendChild(canvas);
+      canvas.style.maxWidth = '100%'; canvas.style.display = 'block';
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      if (isDiagram) {
+        const dWrap = document.createElement('div');
+        dWrap.className = 'diagram-page-wrap';
+        const dBar = document.createElement('div');
+        dBar.className = 'diagram-page-bar';
+        const dLbl = document.createElement('span');
+        dLbl.textContent = 'Diagram – Page ' + p;
+        const dFs = document.createElement('button');
+        dFs.className = 'btn-sec';
+        dFs.textContent = '⧆ Fullscreen';
+        dFs.onclick = () => dWrap.classList.toggle('diagram-fullscreen');
+        dBar.appendChild(dLbl); dBar.appendChild(dFs);
+        dWrap.appendChild(dBar); dWrap.appendChild(canvas);
+        container.appendChild(dWrap);
+      } else {
+        canvas.style.marginBottom = '8px';
+        container.appendChild(canvas);
+      }
     } catch(e) { /* skip pages that fail to render */ }
   }
 }
