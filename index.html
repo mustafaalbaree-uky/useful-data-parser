@@ -1261,8 +1261,7 @@ function inferCollisionInfo(units, reportedType) {
     const changingUnit = sorted.find(u => /CHANGING LANES/i.test(u.action));
     if (stoppedUnit) {
       inferredType = 'Rear-end';
-      const mover = sorted.find(u => u.unitNum !== stoppedUnit.unitNum);
-      notes = mover ? 'U' + mover.unitNum + ' rear-ended U' + stoppedUnit.unitNum : inferNotesFallback(sorted);
+      notes = inferNotesFallback(sorted);
     } else if (changingUnit) {
       inferredType = 'Sideswipe';
       notes = 'U' + changingUnit.unitNum + ' improper lane change';
@@ -1271,8 +1270,20 @@ function inferCollisionInfo(units, reportedType) {
     }
 
   } else if (rel === 'OPPOSITE') {
-    inferredType = 'Head-on';
-    notes = inferNotesFallback(sorted);
+    const ltUnit = sorted.find(u => /MAKING LEFT TURN/i.test(u.action));
+    const straightUnit = sorted.find(u => /GOING STRAIGHT/i.test(u.action));
+    if (ltUnit && straightUnit) {
+      inferredType = 'OLT';
+      const strCodes = straightUnit.factors.map(f => f.code);
+      if (strCodes.includes('03') || strCodes.includes('14')) {
+        notes = 'U' + straightUnit.unitNum + ' ran red light';
+      } else {
+        notes = 'U' + ltUnit.unitNum + ' failed to yield for U' + straightUnit.unitNum;
+      }
+    } else {
+      inferredType = 'Head-on';
+      notes = inferNotesFallback(sorted);
+    }
 
   } else {
     notes = inferNotesFallback(sorted);
