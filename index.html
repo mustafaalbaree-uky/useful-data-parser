@@ -173,6 +173,41 @@
     width: 110px;
   }
   .field-block input[type=text]:focus { border-color: var(--accent2); }
+  .field-block textarea#pageNum {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 11px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+    width: 110px;
+    height: 40px;
+    min-height: 40px;
+    resize: vertical;
+  }
+  .field-block textarea#pageNum:focus { border-color: var(--accent2); }
+  .page-row { display: flex; gap: 8px; align-items: flex-start; }
+  .arrow-adjust-btn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 9px 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .arrow-adjust-btn:hover { color: var(--text); background: var(--border); }
+  .arrow-adjust-btn.active {
+    background: var(--accent2);
+    border-color: var(--accent2);
+    color: #fff;
+  }
   .check-block { display: flex; flex-direction: column; gap: 6px; }
   .check-block .input-label { justify-content: flex-start; }
   .check-inner {
@@ -333,7 +368,10 @@
     <div class="fields-row">
       <div class="field-block">
         <div class="input-label">Page #</div>
-        <input type="text" id="pageNum" placeholder="e.g. 257">
+        <div class="page-row">
+          <textarea id="pageNum" placeholder="e.g. 257" rows="1"></textarea>
+          <button type="button" class="arrow-adjust-btn" id="arrowAdjustBtn" onclick="toggleArrowAdjust(event)" title="Use ← / → arrow keys to adjust">◄ ►</button>
+        </div>
       </div>
       <div class="check-block">
         <div class="input-label">Has Diagram?</div>
@@ -673,8 +711,45 @@ function copyTSV() { navigator.clipboard.writeText(tableToTSV()); }
 function copyAndClearAll() {
   const tsv = tableToTSV();
   if (!tsv) return;
-  navigator.clipboard.writeText(tsv).then(() => { renderRows([]); clearInput(); });
+  navigator.clipboard.writeText(tsv).then(() => {
+    renderRows([]);
+    // clear everything except the page number, which the user wants to keep
+    const keepPage = document.getElementById('pageNum').value;
+    clearInput();
+    document.getElementById('pageNum').value = keepPage;
+    saveState();
+  });
 }
+
+// ── page # arrow-adjust mode ─────────────────────────────────────────────────
+let arrowAdjustActive = false;
+function setArrowAdjust(on) {
+  arrowAdjustActive = on;
+  document.getElementById('arrowAdjustBtn').classList.toggle('active', on);
+}
+function toggleArrowAdjust(e) {
+  if (e) e.stopPropagation();
+  setArrowAdjust(!arrowAdjustActive);
+}
+function adjustPage(delta) {
+  const el = document.getElementById('pageNum');
+  const n = parseInt(el.value, 10);
+  const next = (isNaN(n) ? 0 : n) + delta;
+  el.value = String(next);
+  saveState();
+}
+// arrow keys adjust while active
+document.addEventListener('keydown', function(e) {
+  if (!arrowAdjustActive) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); adjustPage(1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); adjustPage(-1); }
+});
+// clicking anything other than the adjust button turns the mode off
+document.addEventListener('mousedown', function(e) {
+  if (arrowAdjustActive && !document.getElementById('arrowAdjustBtn').contains(e.target)) {
+    setArrowAdjust(false);
+  }
+});
 function downloadCSV() {
   const rows = getRows();
   const csv = rows.map(r => r.map(c => '"' + c.replace(/"/g,'""') + '"').join(',')).join('\n');
