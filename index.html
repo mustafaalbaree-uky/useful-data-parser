@@ -319,13 +319,17 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         </div>
         <div class="verify-info-grid" id="verifyInfoGrid"></div>
         <div class="verify-fields" id="verifyFields"></div>
+        <button class="view-pdf-btn" onclick="viewInPdf()" style="margin-top:12px;">View in PDF</button>
       </div>
       <div class="verify-right">
         <div class="verify-panel">
           <div class="verify-panel-label">Supporting text</div>
           <div id="verifyNarrative"></div>
         </div>
-        <button class="view-pdf-btn" onclick="viewInPdf()" style="margin-top:10px;">View in PDF</button>
+        <div class="verify-panel" style="margin-top:12px;">
+          <div class="verify-panel-label">Diagram</div>
+          <div id="verifyDiagram"></div>
+        </div>
       </div>
     </div>
     <!-- PDF viewer — full width below both columns -->
@@ -845,6 +849,69 @@ function renderVerifyView() {
     narrEl.className = 'verify-empty-text'; narrEl.textContent = 'No supporting text for this entry.';
   }
   // pdfPagesWrap is NOT touched here — persists across verify/edit clicks
+
+  // Auto-render the detected diagram page under supporting text
+  renderDiagramForEntry();
+}
+
+async function renderDiagramForEntry() {
+  const proj = getActiveProject(); if (!proj) return;
+  const i = APP.verifyIndex;
+  const container = document.getElementById('verifyDiagram');
+  if (!container) return;
+  const range = (proj.reportPages || [])[i];
+  const rowSource = (proj.rowSources || [])[i] || proj.pdfName || '';
+  container.innerHTML = '';
+
+  if (!range) {
+    container.className = 'verify-empty-text';
+    container.textContent = 'No diagram available for this entry.';
+    return;
+  }
+
+  const cacheValid = SESSION.pdf
+    && SESSION.pdfProjectId === APP.projectId
+    && SESSION.pdfFileName === rowSource;
+
+  if (!cacheValid) {
+    container.className = '';
+    const btn = document.createElement('button');
+    btn.className = 'btn-sec';
+    btn.textContent = 'Load PDF to show diagram';
+    btn.onclick = async function() { const ok = await pickAndCachePdf(); if (ok) renderDiagramForEntry(); };
+    container.appendChild(btn);
+    return;
+  }
+
+  container.className = '';
+  const reqIndex = i; // guard against navigating away mid-render
+  let found = false;
+  for (let p = range.start; p <= range.end; p++) {
+    try {
+      const page = await SESSION.pdf.getPage(p);
+      const tc = await page.getTextContent();
+      if (tc.items.length !== 0) continue; // only text-free (diagram) pages
+      if (APP.verifyIndex !== reqIndex) return; // user navigated; abort
+      found = true;
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      canvas.style.maxWidth = '100%'; canvas.style.display = 'block';
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      const dWrap = document.createElement('div'); dWrap.className = 'diagram-page-wrap';
+      const dBar = document.createElement('div'); dBar.className = 'diagram-page-bar';
+      const dLbl = document.createElement('span'); dLbl.textContent = 'Diagram – Page ' + p;
+      const dFs = document.createElement('button'); dFs.className = 'btn-sec'; dFs.textContent = '⧆ Fullscreen';
+      dFs.onclick = function() { dWrap.classList.toggle('diagram-fullscreen'); };
+      dBar.appendChild(dLbl); dBar.appendChild(dFs);
+      dWrap.appendChild(dBar); dWrap.appendChild(canvas);
+      container.appendChild(dWrap);
+    } catch(e) { /* skip pages that fail to render */ }
+  }
+  if (!found) {
+    container.className = 'verify-empty-text';
+    container.textContent = 'No diagram detected for this entry.';
+  }
 }
 
 function verifyField(fieldKey, col, newValue) {
