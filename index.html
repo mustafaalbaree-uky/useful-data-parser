@@ -324,7 +324,7 @@
     <div class="input-block">
       <div class="input-label"><span>Intersection</span></div>
       <div class="combo-wrap" id="comboWrap">
-        <textarea id="intersectionInput" placeholder="Type intersection name..." rows="1" autocomplete="off" oninput="onComboInput()" onkeydown="onComboKey(event)"></textarea>
+        <textarea id="intersectionInput" placeholder="Type intersection name..." rows="1" autocomplete="off" oninput="onComboInput()" onfocus="openComboDropdown()" onclick="openComboDropdown()" onkeydown="onComboKey(event)"></textarea>
         <button class="combo-arrow" type="button" onclick="toggleComboDropdown()" tabindex="-1">▾</button>
         <div class="combo-dropdown" id="comboDropdown"></div>
       </div>
