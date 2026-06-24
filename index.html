@@ -41,6 +41,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .project-card-del { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; line-height: 1; }
 .project-card-del:hover { color: #e05c5c; }
 .menu-empty { color: var(--muted); font-style: italic; font-size: 14px; text-align: center; padding: 32px 0; }
+.menu-footer { display: flex; justify-content: flex-start; margin-top: 16px; }
 
 /* create */
 .create-body { padding: 24px; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
@@ -87,11 +88,6 @@ textarea:focus { border-color: var(--accent2); }
 .arrow-adjust-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; padding: 9px 11px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
 .arrow-adjust-btn:hover { color: var(--text); background: var(--border); }
 .arrow-adjust-btn.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
-.check-block { display: flex; flex-direction: column; gap: 6px; }
-.check-block .input-label { justify-content: flex-start; }
-.check-inner { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 7px; padding: 8px 11px; cursor: pointer; user-select: none; }
-.check-inner input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent2); cursor: pointer; }
-.check-inner span { font-size: 13px; }
 .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 .btn-primary { width: 100%; background: var(--accent2); color: #fff; border: none; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; }
 .btn-primary:hover { background: var(--accent); }
@@ -101,8 +97,8 @@ textarea:focus { border-color: var(--accent2); }
 /* table */
 .output-section { display: flex; flex-direction: column; gap: 10px; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; white-space: nowrap; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; white-space: nowrap; }
 th { background: var(--panel2); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
 tr:nth-child(even) td { background: var(--panel2); }
 td.copy-cell { border-left: none; padding: 4px 8px; }
@@ -111,14 +107,20 @@ th.copy-col { border-left: none; width: 1px; }
 .secondary-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .row-copy { background: var(--panel2); border: 1px solid var(--border); padding: 3px 10px; font-size: 11px; font-weight: 500; border-radius: 5px; color: var(--muted); cursor: pointer; }
 .row-copy:hover { background: var(--border); color: var(--text); }
-tr.unverified-row td { background: rgba(91,157,255,0.07) !important; }
+tr.unverified-row td { background: rgba(91,157,255,0.10) !important; }
+tr.unverified-row td:first-child { border-left: 3px solid var(--accent2); }
 tr.table-row { cursor: pointer; }
-tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
+tr.table-row:hover td { background: rgba(91,157,255,0.18) !important; }
 
-/* verify screen */
-.verify-body { padding: 24px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
-.verify-progress-wrap { height: 4px; background: var(--panel2); border-radius: 2px; overflow: hidden; }
+/* verify screen — two-column layout */
+.verify-topbar-meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.verify-outer { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
+.verify-progress-wrap { height: 4px; background: var(--panel2); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
 .verify-progress-bar { height: 100%; background: var(--accent2); transition: width .3s; }
+.verify-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 800px) { .verify-body { grid-template-columns: 1fr; } .verify-right { position: static !important; } }
+.verify-left { display: flex; flex-direction: column; gap: 14px; }
+.verify-right { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 70px; }
 .verify-nav { display: flex; align-items: center; gap: 12px; }
 .verify-nav-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); font-size: 18px; font-weight: 700; padding: 7px 18px; border-radius: 8px; cursor: pointer; }
 .verify-nav-btn:hover { background: var(--border); }
@@ -127,10 +129,12 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
 .verify-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
 .verify-info-cell { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; }
 .verify-info-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
-.verify-info-value { font-size: 14px; color: var(--text); }
+.verify-info-value-input { font-size: 14px; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-family: inherit; outline: none; width: 100%; padding: 0; }
+.verify-info-value-input:hover { border-bottom-color: var(--border); }
+.verify-info-value-input:focus { border-bottom-color: var(--accent2); }
 .verify-fields { display: flex; flex-direction: column; gap: 7px; }
 .verify-field { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
-.verify-field.unverified { border-color: var(--accent2); background: rgba(91,157,255,0.05); }
+.verify-field.unverified { border-color: var(--accent2); background: rgba(91,157,255,0.05); box-shadow: 0 0 0 3px rgba(91,157,255,0.18); }
 .verify-field-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; width: 110px; flex-shrink: 0; }
 .verify-field-val { flex: 1; font-size: 14px; background: transparent; border: none; color: var(--text); font-family: inherit; outline: none; padding: 0; min-width: 0; }
 .verify-field.unverified .verify-field-val { border-bottom: 1px dashed var(--accent2); }
@@ -139,13 +143,13 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
 .verify-check { color: #4caf50; font-size: 16px; flex-shrink: 0; }
 .verify-edit-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 11px; padding: 3px 9px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
 .verify-edit-btn:hover { color: var(--text); background: var(--panel2); }
-.verify-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-@media (max-width: 600px) { .verify-bottom { grid-template-columns: 1fr; } }
 .verify-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .verify-panel-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-.verify-narrative { font-size: 12px; color: var(--text); max-height: 240px; overflow-y: auto; white-space: pre-wrap; font-family: ui-monospace, monospace; line-height: 1.5; }
+.verify-narrative { font-size: 12px; color: var(--text); max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: ui-monospace, monospace; line-height: 1.5; }
 .verify-empty-text { color: var(--muted); font-style: italic; font-size: 13px; }
-#pdfPageCanvas { max-width: 100%; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px; display: none; }
+.view-pdf-btn { background: var(--accent2); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; align-self: flex-start; }
+.view-pdf-btn:hover { background: var(--accent); }
+#pdfPagesContainer { display: none; max-height: 500px; overflow-y: auto; border-radius: 6px; border: 1px solid var(--border); padding: 8px; background: var(--panel2); }
 
 /* modal */
 .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
@@ -160,6 +164,10 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
 /* theme toggle */
 .theme-toggle { position: fixed; bottom: 18px; right: 18px; background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 20px; cursor: pointer; z-index: 50; }
 .theme-toggle:hover { color: var(--text); background: var(--border); }
+
+/* legacy screen */
+.legacy-body { padding: 24px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.legacy-entry-inner { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 </style>
 </head>
 <body>
@@ -173,6 +181,9 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
     </div>
     <div id="projectList" class="project-list"></div>
     <button class="btn-primary" onclick="showScreen('create')">New Project</button>
+    <div class="menu-footer">
+      <button class="btn-sec" onclick="showScreen('legacy')">Classic Mode</button>
+    </div>
   </div>
 </div>
 
@@ -184,8 +195,8 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
   </div>
   <div class="create-body">
     <div>
-      <label class="create-label" for="createPdfInput">PDF File</label>
-      <input type="file" id="createPdfInput" accept=".pdf" class="create-input" onchange="onCreateFileChange(this)">
+      <label class="create-label" for="createPdfInput">PDF File(s)</label>
+      <input type="file" id="createPdfInput" accept=".pdf" multiple class="create-input" onchange="onCreateFileChange(this)">
     </div>
     <div>
       <label class="create-label" for="createNameInput">Project Name</label>
@@ -201,6 +212,7 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
   <div class="topbar">
     <button class="topbar-back" onclick="showScreen('menu')">← Projects</button>
     <span class="topbar-title" id="tableProjectName"></span>
+    <button class="topbar-action" onclick="addPdfToProject()">+ Add PDF</button>
     <button class="topbar-action" onclick="goToVerify()">Verify View</button>
   </div>
   <div class="table-body">
@@ -241,13 +253,6 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
               <button type="button" class="arrow-adjust-btn" id="arrowAdjustBtn" onclick="toggleArrowAdjust(event)" title="Use ← / → arrow keys to adjust">◄ ►</button>
             </div>
           </div>
-          <div class="check-block">
-            <div class="input-label">Has Diagram?</div>
-            <label class="check-inner">
-              <input type="checkbox" id="hasDiagram">
-              <span>Yes</span>
-            </label>
-          </div>
         </div>
         <hr class="divider">
         <button class="btn-primary" onclick="parseAndAdd()">Parse Input</button>
@@ -260,15 +265,15 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
           <thead>
             <tr>
               <th>Intersection</th><th></th><th>Date</th><th>DOW</th><th>Time</th>
-              <th>Collision Type</th><th>Weather/Road</th>
+              <th>Collision Type</th><th>Wthr/Road</th>
               <th>Unit 1</th><th>Unit 2</th><th>Unit 3</th><th>Unit 4</th>
-              <th>Injuries</th><th># Units</th><th>Notes</th>
-              <th>PDF Page</th><th>GPS</th><th>Has Diagram?</th>
+              <th>Injuries</th><th>Units</th><th>Notes</th>
+              <th>PDF Page</th><th>GPS</th>
               <th class="copy-col"></th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td class="empty" colspan="18">No entries yet.</td></tr>
+            <tr><td class="empty" colspan="17">No entries yet.</td></tr>
           </tbody>
         </table>
       </div>
@@ -286,29 +291,103 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
   <div class="topbar">
     <button class="topbar-back" onclick="showScreen('table')">← Table</button>
     <span class="topbar-title" id="verifyProjectName"></span>
-    <span id="verifyPctLabel" style="font-size:12px; color:var(--muted); white-space:nowrap;"></span>
+    <span class="verify-topbar-meta" id="verifyPctLabel"></span>
     <button class="topbar-action" onclick="showScreen('table')">Table View</button>
   </div>
-  <div class="verify-body">
+  <div class="verify-outer">
     <div class="verify-progress-wrap">
       <div class="verify-progress-bar" id="verifyProgressBar" style="width:0%"></div>
     </div>
-    <div class="verify-nav">
-      <button class="verify-nav-btn" id="verifyPrevBtn" onclick="navigateVerify(-1)">◄</button>
-      <span class="verify-counter" id="verifyEntryLabel"></span>
-      <button class="verify-nav-btn" id="verifyNextBtn" onclick="navigateVerify(1)">►</button>
-    </div>
-    <div class="verify-info-grid" id="verifyInfoGrid"></div>
-    <div class="verify-fields" id="verifyFields"></div>
-    <div class="verify-bottom">
-      <div class="verify-panel">
-        <div class="verify-panel-label">Supporting text</div>
-        <div id="verifyNarrative"></div>
+    <div class="verify-body">
+      <div class="verify-left">
+        <div class="verify-nav">
+          <button class="verify-nav-btn" id="verifyPrevBtn" onclick="navigateVerify(-1)">◄</button>
+          <span class="verify-counter" id="verifyEntryLabel"></span>
+          <button class="verify-nav-btn" id="verifyNextBtn" onclick="navigateVerify(1)">►</button>
+        </div>
+        <div class="verify-info-grid" id="verifyInfoGrid"></div>
+        <div class="verify-fields" id="verifyFields"></div>
       </div>
-      <div class="verify-panel">
-        <div class="verify-panel-label">PDF Page</div>
-        <button class="btn-sec" onclick="viewInPdf()" style="align-self:flex-start;">View in PDF</button>
-        <canvas id="pdfPageCanvas"></canvas>
+      <div class="verify-right">
+        <button class="view-pdf-btn" onclick="viewInPdf()">View in PDF</button>
+        <div id="pdfPagesContainer"></div>
+        <div class="verify-panel">
+          <div class="verify-panel-label">Supporting text</div>
+          <div id="verifyNarrative"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screen: Legacy (Classic Mode) -->
+<div id="screen-legacy" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="showScreen('menu')">← Back</button>
+    <span class="topbar-title">Classic Mode</span>
+  </div>
+  <div class="legacy-body">
+    <div class="legacy-entry-inner">
+      <div class="input-block">
+        <div class="input-label"><span>Report Text</span></div>
+        <textarea id="linput" placeholder="Paste report text here…" style="min-height:180px;"></textarea>
+        <button class="paste-btn-full" onclick="legacyPasteReport()">Paste from clipboard</button>
+      </div>
+      <div class="input-block">
+        <div class="input-label"><span>Coordinates</span></div>
+        <textarea id="lcoordInput" placeholder="Paste DEG/MIN block here…" style="min-height:100px;"></textarea>
+        <button class="paste-btn-full" onclick="legacyPasteCoord()">Paste from clipboard</button>
+      </div>
+      <div class="intersection-row">
+        <div class="input-block">
+          <div class="input-label"><span>Intersection</span></div>
+          <div class="combo-wrap" id="lcomboWrap">
+            <textarea id="lintersectionInput" placeholder="Type intersection name…" rows="1" autocomplete="off" oninput="onLComboInput()" onfocus="openLComboDropdown()" onclick="openLComboDropdown()" onkeydown="onLComboKey(event)"></textarea>
+            <button class="combo-arrow" type="button" onclick="toggleLComboDropdown()" tabindex="-1">▾</button>
+            <div class="combo-dropdown" id="lcomboDropdown"></div>
+          </div>
+        </div>
+        <div class="input-block">
+          <div class="input-label"><span>Secondary Intersection</span></div>
+          <div class="combo-wrap">
+            <textarea id="lsecondaryInput" placeholder="Type secondary intersection (optional)…" rows="1" autocomplete="off" oninput="saveLegacyState()"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="fields-row">
+        <div class="field-block">
+          <div class="input-label">Page #</div>
+          <div class="page-row">
+            <textarea id="lpageNum" placeholder="e.g. 257" rows="1" style="width:110px;height:40px;min-height:40px;resize:vertical;"></textarea>
+          </div>
+        </div>
+      </div>
+      <hr class="divider">
+      <button class="btn-primary" onclick="legacyParseAndAdd()">Parse Input</button>
+      <button class="btn-sec" style="margin-top:4px;" onclick="legacyClearInput()">Clear Input</button>
+    </div>
+    <div class="output-section">
+      <div class="panel">
+        <table id="legacyTable">
+          <thead>
+            <tr>
+              <th>Intersection</th><th></th><th>Date</th><th>DOW</th><th>Time</th>
+              <th>Collision Type</th><th>Wthr/Road</th>
+              <th>Unit 1</th><th>Unit 2</th><th>Unit 3</th><th>Unit 4</th>
+              <th>Injuries</th><th>Units</th><th>Notes</th>
+              <th>PDF Page</th><th>GPS</th>
+              <th class="copy-col"></th>
+            </tr>
+          </thead>
+          <tbody id="legacyTbody">
+            <tr><td class="empty" colspan="17">No entries yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="secondary-row">
+        <button class="btn-sec" onclick="legacyCopyAndClear()">Copy &amp; Clear</button>
+        <button class="btn-sec" onclick="legacyCopyTSV()">Copy Table (TSV)</button>
+        <button class="btn-sec" onclick="legacyDownloadCSV()">Download CSV</button>
       </div>
     </div>
   </div>
@@ -320,12 +399,13 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
     <button class="modal-close" onclick="document.getElementById('howToModal').classList.remove('open')">&times;</button>
     <h2>How to use</h2>
     <ol>
-      <li><strong>New Project</strong> — click New Project, select a PDF file, give the project a name, and click Process PDF. All entries are extracted automatically.</li>
+      <li><strong>New Project</strong> — click New Project, select one or more PDF files, give the project a name, and click Process PDF. All entries are extracted automatically.</li>
+      <li><strong>Add PDF</strong> — open a project and click <em>+ Add PDF</em> in the topbar to append entries from additional PDF files.</li>
       <li><strong>Table view</strong> — shows all extracted entries. Rows highlighted in blue have unverified fields. Click any row to open the Verification view for that entry.</li>
       <li><strong>Verification view</strong> — review each highlighted field. Edit the value if needed, then click <em>Verify</em> to confirm it. Use ◄ ► to move between entries.</li>
-      <li><strong>View in PDF</strong> — in the Verification view, click this button and re-select your PDF file to render the source page as an image for reference.</li>
+      <li><strong>View in PDF</strong> — in the Verification view, click this button and select your PDF file to render all pages for that report entry.</li>
       <li><strong>Export</strong> — use <em>Copy Table (TSV)</em> to copy all rows for pasting into a spreadsheet, or <em>Download CSV</em> to save a file.</li>
-      <li><strong>Manual Entry</strong> — click <em>+ Manual Entry</em> in the table view to add a single entry by pasting report text and coordinates.</li>
+      <li><strong>Classic Mode</strong> — available from the main menu for manual single-entry parsing without the project system.</li>
     </ol>
   </div>
 </div>
@@ -338,9 +418,11 @@ tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
 const LS_KEY = 'dp_state_v3';
 const LS_INTERSECTIONS = 'dp_intersections_v1';
 const LS_PROJECTS = 'dp_projects_v1';
-const COL_COUNT = 17;
+const LS_LEGACY = 'dp_legacy_v1';
+const COL_COUNT = 16;
 
 const APP = { projectId: null, verifyIndex: 0 };
+const SESSION = { pdf: null, pdfProjectId: null, pdfUrl: null };
 
 // ── Project store ─────────────────────────────────────────────────────────────
 function getProjects() {
@@ -357,6 +439,7 @@ function getActiveProject() {
   return getProjects().find(p => p.id === APP.projectId) || null;
 }
 function updateProject(proj) {
+  proj.updatedAt = new Date().toISOString();
   const list = getProjects();
   const idx = list.findIndex(p => p.id === proj.id);
   if (idx >= 0) list[idx] = proj; else list.push(proj);
@@ -374,6 +457,7 @@ function showScreen(name, opts) {
     if (opts.index !== undefined) APP.verifyIndex = opts.index;
     renderVerifyView();
   }
+  if (name === 'legacy') legacyRenderRows();
 }
 
 function goToVerify() {
@@ -396,12 +480,15 @@ function renderMenu() {
   list.innerHTML = '';
   for (const proj of [...projects].reverse()) {
     const date = new Date(proj.createdAt).toLocaleDateString();
+    const editedAt = proj.updatedAt
+      ? new Date(proj.updatedAt).toLocaleDateString() + ' ' + new Date(proj.updatedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+      : date;
     const card = document.createElement('div');
     card.className = 'project-card';
     card.innerHTML =
       '<div class="project-card-info">' +
         '<div class="project-card-name">' + esc(proj.name) + '</div>' +
-        '<div class="project-card-meta">' + proj.rows.length + ' entries &middot; ' + date + ' &middot; ' + esc(proj.pdfName) + '</div>' +
+        '<div class="project-card-meta">' + proj.rows.length + ' entries &middot; Last edited: ' + esc(editedAt) + '</div>' +
       '</div>' +
       '<button class="project-card-open">Open</button>' +
       '<button class="project-card-del" title="Delete">\xd7</button>';
@@ -434,20 +521,31 @@ async function processAndCreate() {
   const nameInput = document.getElementById('createNameInput');
   const status = document.getElementById('createStatus');
   const btn = document.getElementById('createBtn');
-  const file = fileInput.files[0];
-  if (!file) { status.textContent = 'Please select a PDF file first.'; return; }
-  const name = nameInput.value.trim() || file.name.replace(/\.pdf$/i, '');
+  if (!fileInput.files.length) { status.textContent = 'Please select a PDF file first.'; return; }
+  const firstName = fileInput.files[0].name;
+  const name = nameInput.value.trim() || firstName.replace(/\.pdf$/i, '');
   btn.disabled = true;
-  const result = await processPdfForProject(file, status);
+
+  const allRows = [], allNarrative = [], allReportPages = [], allPdfNames = [];
+  for (const file of fileInput.files) {
+    const result = await processPdfForProject(file, status);
+    if (!result) { btn.disabled = false; return; }
+    allRows.push(...result.rows);
+    allNarrative.push(...result.narrative);
+    allReportPages.push(...result.reportPages);
+    allPdfNames.push(file.name);
+  }
+
   btn.disabled = false;
-  if (!result) return;
   const proj = {
     id: genId(),
     name,
-    pdfName: file.name,
+    pdfName: firstName,
+    pdfNames: allPdfNames,
     createdAt: new Date().toISOString(),
-    rows: result.rows,
-    narrative: result.narrative,
+    rows: allRows,
+    narrative: allNarrative,
+    reportPages: allReportPages,
     verified: {},
   };
   updateProject(proj);
@@ -457,6 +555,37 @@ async function processAndCreate() {
   nameInput.value = '';
   status.textContent = '';
   showScreen('table');
+}
+
+// ── Add PDF to existing project ───────────────────────────────────────────────
+function addPdfToProject() {
+  const proj = getActiveProject();
+  if (!proj) return;
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = '.pdf'; fileInput.multiple = true;
+  fileInput.onchange = async function() {
+    if (!fileInput.files.length) return;
+    const status = document.createElement('div');
+    status.style.cssText = 'position:fixed;bottom:60px;right:24px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:13px;color:var(--muted);z-index:200;';
+    document.body.appendChild(status);
+    for (const file of fileInput.files) {
+      const result = await processPdfForProject(file, status);
+      if (!result) continue;
+      const p = getActiveProject();
+      if (!p) continue;
+      p.rows.push(...result.rows);
+      if (!p.narrative) p.narrative = [];
+      p.narrative.push(...result.narrative);
+      if (!p.reportPages) p.reportPages = [];
+      p.reportPages.push(...result.reportPages);
+      if (!p.pdfNames) p.pdfNames = [p.pdfName];
+      p.pdfNames.push(file.name);
+      updateProject(p);
+    }
+    document.body.removeChild(status);
+    renderTableView();
+  };
+  fileInput.click();
 }
 
 // ── Table view ────────────────────────────────────────────────────────────────
@@ -487,7 +616,7 @@ function renderRows(rows, verified) {
     tr.className = 'table-row';
     if (!isRowVerified(verified, i)) tr.classList.add('unverified-row');
     tr.dataset.rowIdx = String(i);
-    row.forEach(function(v) {
+    row.slice(0, 16).forEach(function(v) {
       const td = document.createElement('td');
       td.textContent = v || '';
       tr.appendChild(td);
@@ -537,7 +666,7 @@ function downloadCSV() {
 function clearTable() {
   const proj = getActiveProject();
   if (!proj || !confirm('Clear all entries from this project? This cannot be undone.')) return;
-  proj.rows = []; proj.narrative = []; proj.verified = {};
+  proj.rows = []; proj.narrative = []; proj.verified = {}; proj.reportPages = [];
   updateProject(proj);
   renderTableView();
 }
@@ -576,14 +705,20 @@ function renderVerifyView() {
   document.getElementById('verifyPrevBtn').disabled = i === 0;
   document.getElementById('verifyNextBtn').disabled = i === total - 1;
 
-  // info grid
+  // info grid — editable inputs
   const grid = document.getElementById('verifyInfoGrid');
   grid.innerHTML = '';
   INFO_FIELDS.forEach(function(f) {
     const cell = document.createElement('div'); cell.className = 'verify-info-cell';
     const lbl = document.createElement('div'); lbl.className = 'verify-info-label'; lbl.textContent = f.label;
-    const val = document.createElement('div'); val.className = 'verify-info-value'; val.textContent = row[f.col] || '—';
-    cell.appendChild(lbl); cell.appendChild(val);
+    const inp = document.createElement('input'); inp.className = 'verify-info-value-input'; inp.type = 'text';
+    inp.value = row[f.col] || '';
+    inp.onblur = function() {
+      const p = getActiveProject(); if (!p) return;
+      p.rows[APP.verifyIndex][f.col] = inp.value;
+      updateProject(p);
+    };
+    cell.appendChild(lbl); cell.appendChild(inp);
     grid.appendChild(cell);
   });
 
@@ -624,11 +759,7 @@ function renderVerifyView() {
   } else {
     narrEl.className = 'verify-empty-text'; narrEl.textContent = 'No supporting text for this entry.';
   }
-
-  // reset canvas
-  const canvas = document.getElementById('pdfPageCanvas');
-  canvas.style.display = 'none';
-  canvas.width = 0; canvas.height = 0;
+  // do NOT touch pdfPagesContainer here — let navigateVerify handle clearing
 }
 
 function verifyField(fieldKey, col, newValue) {
@@ -657,34 +788,62 @@ function navigateVerify(delta) {
   if (!proj) return;
   const next = APP.verifyIndex + delta;
   if (next < 0 || next >= proj.rows.length) return;
+  // clear PDF container when changing entries
+  const container = document.getElementById('pdfPagesContainer');
+  container.style.display = 'none';
+  container.innerHTML = '';
   APP.verifyIndex = next;
   renderVerifyView();
+}
+
+async function pickAndCachePdf() {
+  return new Promise(function(resolve) {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file'; fileInput.accept = '.pdf';
+    fileInput.onchange = async function() {
+      const file = fileInput.files[0]; if (!file) { resolve(false); return; }
+      try {
+        if (SESSION.pdfUrl) URL.revokeObjectURL(SESSION.pdfUrl);
+        const url = URL.createObjectURL(file);
+        const pdf = await pdfjsLib.getDocument({ url }).promise;
+        SESSION.pdf = pdf; SESSION.pdfProjectId = APP.projectId; SESSION.pdfUrl = url;
+        resolve(true);
+      } catch(e) { alert('Could not load PDF: ' + e.message); resolve(false); }
+    };
+    fileInput.click();
+  });
 }
 
 async function viewInPdf() {
   const proj = getActiveProject();
   if (!proj) return;
-  const row = proj.rows[APP.verifyIndex];
-  const pdfPageNum = parseInt(row[14], 10);
-  if (isNaN(pdfPageNum)) { alert('No PDF page number stored for this entry.'); return; }
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file'; fileInput.accept = '.pdf';
-  fileInput.onchange = async function() {
-    const file = fileInput.files[0]; if (!file) return;
-    const canvas = document.getElementById('pdfPageCanvas');
-    canvas.style.display = 'none';
+  const i = APP.verifyIndex;
+  const range = (proj.reportPages || [])[i];
+  const pageNum = parseInt((proj.rows[i] || [])[14], 10);
+
+  if (!SESSION.pdf || SESSION.pdfProjectId !== APP.projectId) {
+    const ok = await pickAndCachePdf();
+    if (!ok) return;
+  }
+
+  const startPage = range ? range.start : (isNaN(pageNum) ? 1 : pageNum);
+  const endPage = range ? range.end : startPage;
+
+  const container = document.getElementById('pdfPagesContainer');
+  container.innerHTML = '';
+  container.style.display = 'block';
+
+  for (let p = startPage; p <= endPage; p++) {
     try {
-      const url = URL.createObjectURL(file);
-      const pdf = await pdfjsLib.getDocument({ url }).promise;
-      const page = await pdf.getPage(pdfPageNum);
+      const page = await SESSION.pdf.getPage(p);
       const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
       canvas.width = viewport.width; canvas.height = viewport.height;
+      canvas.style.maxWidth = '100%'; canvas.style.display = 'block'; canvas.style.marginBottom = '8px';
+      container.appendChild(canvas);
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      canvas.style.display = 'block';
-      URL.revokeObjectURL(url);
-    } catch(e) { alert('Could not render page: ' + e.message); }
-  };
-  fileInput.click();
+    } catch(e) { /* skip pages that fail */ }
+  }
 }
 
 // ── Intersection combobox ──────────────────────────────────────────────────────
@@ -819,14 +978,15 @@ function parseAndAdd() {
   const intersection = document.getElementById('intersectionInput').value.trim();
   const secondary = document.getElementById('secondaryInput').value.trim();
   const pageNum = document.getElementById('pageNum').value.trim();
-  const hasDiagram = document.getElementById('hasDiagram').checked ? 'Y' : '';
   saveIntersection(intersection);
   const notes = secondary ? '"' + intersection + '" and "' + secondary + '"' : '';
   const proj = getActiveProject();
   if (!proj) return;
-  proj.rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords, hasDiagram]);
+  proj.rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords]);
   if (!proj.narrative) proj.narrative = [];
   proj.narrative.push('');
+  if (!proj.reportPages) proj.reportPages = [];
+  proj.reportPages.push(null);
   updateProject(proj);
   renderTableView();
   saveFormState();
@@ -845,7 +1005,6 @@ function clearInput() {
   document.getElementById('intersectionInput').value = '';
   document.getElementById('secondaryInput').value = '';
   document.getElementById('pageNum').value = '';
-  document.getElementById('hasDiagram').checked = false;
   saveFormState();
 }
 
@@ -858,7 +1017,6 @@ function saveFormState() {
       intersection: document.getElementById('intersectionInput').value,
       secondary: document.getElementById('secondaryInput').value,
       pageNum: document.getElementById('pageNum').value,
-      hasDiagram: document.getElementById('hasDiagram').checked,
     }));
   } catch(e) {}
 }
@@ -870,7 +1028,6 @@ function loadFormState() {
     if (s.intersection) document.getElementById('intersectionInput').value = s.intersection;
     if (s.secondary) document.getElementById('secondaryInput').value = s.secondary;
     if (s.pageNum) document.getElementById('pageNum').value = s.pageNum;
-    if (s.hasDiagram) document.getElementById('hasDiagram').checked = s.hasDiagram;
   } catch(e) {}
 }
 
@@ -899,7 +1056,6 @@ document.addEventListener('mousedown', function(e) {
 
 // ── Unit parsing (used by processPdfForProject) ───────────────────────────────
 const UNIT_DIR_MAP = {NORTH:'NB', SOUTH:'SB', EAST:'EB', WEST:'WB'};
-const UNIT_DIR_OPTIONS = ['NB','SB','EB','WB','Inbound','Outbound','N/A',''];
 
 function parseUnitPage(raw) {
   let unitNum = null;
@@ -959,6 +1115,18 @@ function inferNotes(units) {
   return '';
 }
 
+// ── Narrative trimming ────────────────────────────────────────────────────────
+function trimNarrative(text) {
+  const lcMatch = text.match(/LOCAL CODE\s+\d+[^\n]*/i);
+  if (lcMatch) {
+    const after = text.indexOf('\n', lcMatch.index);
+    text = after !== -1 ? text.slice(after + 1) : text.slice(lcMatch.index + lcMatch[0].length);
+  }
+  const bwcIdx = text.search(/\bBWC\b/i);
+  if (bwcIdx !== -1) text = text.slice(0, bwcIdx);
+  return text.trim();
+}
+
 // ── PDF processing ────────────────────────────────────────────────────────────
 function classifyPage(text) {
   if (/MASTER FILE/i.test(text) && /^\s*\d\s+(YES|NO)\b/im.test(text)) return 'UNIT';
@@ -999,6 +1167,10 @@ async function processPdfForProject(file, statusEl) {
   try { pdf = await pdfjsLib.getDocument({ url }).promise; }
   catch(e) { statusEl.textContent = 'Error loading PDF: ' + e.message; URL.revokeObjectURL(url); return null; }
 
+  // cache the PDF for this session
+  if (SESSION.pdfUrl) URL.revokeObjectURL(SESSION.pdfUrl);
+  SESSION.pdf = pdf; SESSION.pdfProjectId = APP.projectId; SESSION.pdfUrl = url;
+
   const pages = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     statusEl.textContent = 'Extracting page ' + i + ' of ' + pdf.numPages + '…';
@@ -1008,7 +1180,7 @@ async function processPdfForProject(file, statusEl) {
     const annotations = await page.getAnnotations();
     pages.push({ pdfPageNum: i, text, annotations, type: classifyPage(text) });
   }
-  URL.revokeObjectURL(url);
+  // do NOT revoke URL — keep it alive in SESSION
 
   const reports = []; let cur = null;
   for (const p of pages) {
@@ -1024,6 +1196,13 @@ async function processPdfForProject(file, statusEl) {
   if (cur) reports.push(cur);
   if (!reports.length) { statusEl.textContent = 'No entries found in this PDF.'; return null; }
 
+  const reportPages = reports.map(function(rep, ri) {
+    return {
+      start: rep.mainPage.pdfPageNum,
+      end: ri + 1 < reports.length ? reports[ri + 1].mainPage.pdfPageNum - 1 : pdf.numPages,
+    };
+  });
+
   const rows = [], narrative = [];
   for (const rep of reports) {
     const r = parseReport(rep.mainPage.text);
@@ -1035,12 +1214,157 @@ async function processPdfForProject(file, statusEl) {
     const parsedUnits = rep.unitPages.map(p => parseUnitPage(p.text)).filter(u => u.unitNum);
     const notes = inferNotes(parsedUnits);
     const u = n => (parsedUnits.find(x => x.unitNum === n) || {}).overrideDir || '';
-    rows.push(['', '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords, '']);
-    narrative.push(rep.narrativePages.map(p => p.text).join('\n\n'));
+    rows.push(['', '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords]);
+    narrative.push(trimNarrative(rep.narrativePages.map(p => p.text).join('\n\n')));
   }
   statusEl.textContent = 'Done — ' + rows.length + ' entr' + (rows.length !== 1 ? 'ies' : 'y') + ' found.';
-  return { rows, narrative };
+  return { rows, narrative, reportPages };
 }
+
+// ── Legacy (Classic Mode) ─────────────────────────────────────────────────────
+function getLegacyRows() {
+  try { return JSON.parse(localStorage.getItem(LS_LEGACY) || '[]'); } catch(e) { return []; }
+}
+function saveLegacyRows(rows) {
+  try { localStorage.setItem(LS_LEGACY, JSON.stringify(rows)); } catch(e) {}
+}
+function saveLegacyState() {
+  try {
+    localStorage.setItem(LS_LEGACY + '_form', JSON.stringify({
+      input: document.getElementById('linput').value,
+      coordInput: document.getElementById('lcoordInput').value,
+      intersection: document.getElementById('lintersectionInput').value,
+      secondary: document.getElementById('lsecondaryInput').value,
+      pageNum: document.getElementById('lpageNum').value,
+    }));
+  } catch(e) {}
+}
+function loadLegacyState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_LEGACY + '_form') || '{}');
+    if (s.input) document.getElementById('linput').value = s.input;
+    if (s.coordInput) document.getElementById('lcoordInput').value = s.coordInput;
+    if (s.intersection) document.getElementById('lintersectionInput').value = s.intersection;
+    if (s.secondary) document.getElementById('lsecondaryInput').value = s.secondary;
+    if (s.pageNum) document.getElementById('lpageNum').value = s.pageNum;
+  } catch(e) {}
+}
+function legacyParseAndAdd() {
+  const raw = document.getElementById('linput').value;
+  if (!raw.trim()) return;
+  const r = parseReport(raw);
+  const coords = parseCoordText(document.getElementById('lcoordInput').value);
+  const intersection = document.getElementById('lintersectionInput').value.trim();
+  const secondary = document.getElementById('lsecondaryInput').value.trim();
+  const pageNum = document.getElementById('lpageNum').value.trim();
+  saveIntersection(intersection);
+  const notes = secondary ? '"' + intersection + '" and "' + secondary + '"' : '';
+  const rows = getLegacyRows();
+  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords]);
+  saveLegacyRows(rows);
+  legacyRenderRows();
+  saveLegacyState();
+}
+async function legacyPasteReport() {
+  try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('linput').value = t; saveLegacyState(); } }
+  catch(e) { alert('Clipboard access denied — paste manually.'); }
+}
+async function legacyPasteCoord() {
+  try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('lcoordInput').value = t; saveLegacyState(); } }
+  catch(e) { alert('Clipboard access denied — paste manually.'); }
+}
+function legacyClearInput() {
+  document.getElementById('linput').value = '';
+  document.getElementById('lcoordInput').value = '';
+  document.getElementById('lintersectionInput').value = '';
+  document.getElementById('lsecondaryInput').value = '';
+  document.getElementById('lpageNum').value = '';
+  saveLegacyState();
+}
+function legacyRenderRows() {
+  const rows = getLegacyRows();
+  const tbody = document.getElementById('legacyTbody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td class="empty" colspan="17">No entries yet.</td></tr>';
+    return;
+  }
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const tr = document.createElement('tr');
+    row.slice(0, 16).forEach(function(v) {
+      const td = document.createElement('td'); td.textContent = v || ''; tr.appendChild(td);
+    });
+    const copyTd = document.createElement('td'); copyTd.className = 'copy-cell';
+    const btn = document.createElement('button'); btn.className = 'row-copy'; btn.textContent = 'Copy';
+    btn.onclick = function(e) { e.stopPropagation(); legacyCopyRowEl(btn); };
+    copyTd.appendChild(btn); tr.appendChild(copyTd);
+    tbody.appendChild(tr);
+  }
+}
+function legacyCopyRowEl(btn) {
+  const tr = btn.closest('tr');
+  const vals = [...tr.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent);
+  navigator.clipboard.writeText(vals.join('\t'));
+  const orig = btn.textContent; btn.textContent = 'Copied!';
+  setTimeout(function() { btn.textContent = orig; }, 1200);
+}
+function legacyGetRows() {
+  return [...document.querySelectorAll('#legacyTable tbody tr')]
+    .filter(r => !r.querySelector('.empty'))
+    .map(r => [...r.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent));
+}
+function legacyCopyTSV() { navigator.clipboard.writeText(legacyGetRows().map(r => r.join('\t')).join('\n')); }
+function legacyCopyAndClear() {
+  legacyCopyTSV();
+  saveLegacyRows([]);
+  legacyRenderRows();
+}
+function legacyDownloadCSV() {
+  const rows = legacyGetRows();
+  const csv = rows.map(r => r.map(c => '"' + c.replace(/"/g,'""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'export_legacy.csv'; a.click();
+}
+
+// Legacy combobox
+function renderLComboDropdown(filter) {
+  const dd = document.getElementById('lcomboDropdown');
+  let list = getSavedIntersections();
+  if (filter) list = list.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
+  dd.innerHTML = '';
+  if (!list.length) { dd.innerHTML = '<div class="combo-empty">No saved intersections</div>'; return; }
+  for (const item of list) {
+    const div = document.createElement('div'); div.className = 'combo-option';
+    const span = document.createElement('span'); span.textContent = item; span.style.flex = '1';
+    span.onclick = () => selectLComboItem(item);
+    div.appendChild(span); dd.appendChild(div);
+  }
+}
+function openLComboDropdown() {
+  const filter = document.getElementById('lintersectionInput').value.trim();
+  renderLComboDropdown(filter || undefined);
+  document.getElementById('lcomboDropdown').classList.add('open');
+}
+function closeLComboDropdown() { document.getElementById('lcomboDropdown').classList.remove('open'); }
+function toggleLComboDropdown() {
+  const dd = document.getElementById('lcomboDropdown');
+  if (dd.classList.contains('open')) closeLComboDropdown();
+  else { document.getElementById('lintersectionInput').focus(); openLComboDropdown(); }
+}
+function selectLComboItem(val) {
+  document.getElementById('lintersectionInput').value = val;
+  closeLComboDropdown(); saveLegacyState();
+}
+function onLComboInput() { openLComboDropdown(); saveLegacyState(); }
+function onLComboKey(e) {
+  if (e.key === 'Escape') closeLComboDropdown();
+  if (e.key === 'Enter') { e.preventDefault(); closeLComboDropdown(); }
+}
+document.addEventListener('mousedown', function(e) {
+  const wrap = document.getElementById('lcomboWrap');
+  if (wrap && !wrap.contains(e.target)) closeLComboDropdown();
+});
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 function applyTheme(mode) {
@@ -1057,13 +1381,16 @@ function toggleTheme() {
 window.addEventListener('load', function() {
   if (localStorage.getItem('dp_theme') === 'light') applyTheme('light');
   loadFormState();
+  loadLegacyState();
   showScreen('menu');
 });
 
 document.getElementById('input').addEventListener('input', saveFormState);
 document.getElementById('coordInput').addEventListener('input', saveFormState);
 document.getElementById('pageNum').addEventListener('input', saveFormState);
-document.getElementById('hasDiagram').addEventListener('change', saveFormState);
+document.getElementById('linput').addEventListener('input', saveLegacyState);
+document.getElementById('lcoordInput').addEventListener('input', saveLegacyState);
+document.getElementById('lpageNum').addEventListener('input', saveLegacyState);
 </script>
 </body>
 </html>
