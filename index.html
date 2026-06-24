@@ -145,7 +145,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 .verify-edit-btn:hover { color: var(--text); background: var(--panel2); }
 .verify-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .verify-panel-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-.verify-narrative { font-size: 12px; color: var(--text); max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: ui-monospace, monospace; line-height: 1.5; }
+.verify-narrative { font-size: 15px; color: var(--text); max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: ui-monospace, monospace; line-height: 1.6; }
 .verify-empty-text { color: var(--muted); font-style: italic; font-size: 13px; }
 .view-pdf-btn { background: var(--accent2); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .view-pdf-btn:hover { background: var(--accent); }
@@ -157,9 +157,14 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 #pdfPagesContainer { max-height: 70vh; overflow-y: auto; padding: 10px; background: var(--panel); }
 .diagram-page-wrap { border: 2px solid var(--accent2); border-radius: 8px; overflow: hidden; margin-bottom: 12px; background: var(--panel); }
 .diagram-page-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--accent2); color: #fff; font-size: 12px; font-weight: 600; }
-.diagram-page-wrap canvas { display: block; max-width: 100%; }
+.diagram-page-bar button { white-space: nowrap; }
+.diagram-canvas-scroll { overflow: auto; }
+.diagram-page-wrap canvas { display: block; max-width: 100%; cursor: zoom-in; }
+.diagram-page-wrap canvas.zoomed { max-width: none; width: 200%; cursor: zoom-out; }
 .diagram-page-wrap.diagram-fullscreen { position: fixed; inset: 0; z-index: 400; border-radius: 0; margin: 0; display: flex; flex-direction: column; }
-.diagram-page-wrap.diagram-fullscreen canvas { flex: 1; max-height: calc(100vh - 36px); object-fit: contain; width: 100%; }
+.diagram-page-wrap.diagram-fullscreen .diagram-canvas-scroll { flex: 1; display: flex; }
+.diagram-page-wrap.diagram-fullscreen canvas { max-height: calc(100vh - 40px); max-width: 100%; margin: auto; object-fit: contain; }
+.diagram-page-wrap.diagram-fullscreen canvas.zoomed { max-height: none; max-width: none; width: auto; margin: 0; }
 #pdfPagesWrap.pdf-fullscreen { position: fixed; inset: 0; z-index: 300; border-radius: 0; margin: 0; display: flex !important; flex-direction: column; }
 #pdfPagesWrap.pdf-fullscreen #pdfPagesContainer { max-height: none; flex: 1; }
 
@@ -320,6 +325,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         <div class="verify-info-grid" id="verifyInfoGrid"></div>
         <div class="verify-fields" id="verifyFields"></div>
         <button class="view-pdf-btn" onclick="viewInPdf()" style="margin-top:12px;">View in PDF</button>
+        <div id="verifySourcePdf" style="margin-top:6px; font-size:11px; font-style:italic; color:var(--muted); word-break:break-all;"></div>
       </div>
       <div class="verify-right">
         <div class="verify-panel">
@@ -799,17 +805,10 @@ function renderVerifyView() {
     cell.appendChild(lbl); cell.appendChild(inp);
     grid.appendChild(cell);
   });
-  // Source PDF cell (read-only display)
+  // Source PDF — shown as small italic note under the View in PDF button (not a boxed/exported cell)
   const srcName = (proj.rowSources || [])[i] || proj.pdfName || '';
-  if (srcName) {
-    const cell = document.createElement('div'); cell.className = 'verify-info-cell';
-    const lbl = document.createElement('div'); lbl.className = 'verify-info-label'; lbl.textContent = 'Source PDF';
-    const val = document.createElement('div');
-    val.style.cssText = 'font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); margin-top:3px;';
-    val.title = srcName; val.textContent = srcName;
-    cell.appendChild(lbl); cell.appendChild(val);
-    grid.appendChild(cell);
-  }
+  const srcEl = document.getElementById('verifySourcePdf');
+  if (srcEl) { srcEl.textContent = srcName ? 'Source PDF: ' + srcName : ''; srcEl.title = srcName; }
 
   // verify fields
   const fieldsEl = document.getElementById('verifyFields');
@@ -854,6 +853,34 @@ function renderVerifyView() {
   renderDiagramForEntry();
 }
 
+function buildDiagramCard(canvas, pageNum) {
+  const dWrap = document.createElement('div'); dWrap.className = 'diagram-page-wrap';
+  const dBar = document.createElement('div'); dBar.className = 'diagram-page-bar';
+  const dLbl = document.createElement('span'); dLbl.textContent = 'Diagram – Page ' + pageNum;
+  const dBtns = document.createElement('span'); dBtns.style.cssText = 'display:flex; gap:6px;';
+  const dFs = document.createElement('button'); dFs.className = 'btn-sec'; dFs.textContent = '⧆ Fullscreen';
+  const dClose = document.createElement('button'); dClose.className = 'btn-sec'; dClose.textContent = '✕ Close'; dClose.style.display = 'none';
+  dFs.onclick = function() {
+    const fs = dWrap.classList.toggle('diagram-fullscreen');
+    dClose.style.display = fs ? '' : 'none';
+    dFs.textContent = fs ? '⧆ Exit' : '⧆ Fullscreen';
+  };
+  dClose.onclick = function() {
+    dWrap.classList.remove('diagram-fullscreen');
+    canvas.classList.remove('zoomed');
+    dClose.style.display = 'none';
+    dFs.textContent = '⧆ Fullscreen';
+  };
+  dBtns.appendChild(dFs); dBtns.appendChild(dClose);
+  dBar.appendChild(dLbl); dBar.appendChild(dBtns);
+  const scroll = document.createElement('div'); scroll.className = 'diagram-canvas-scroll';
+  canvas.title = 'Click to zoom in / out';
+  canvas.onclick = function() { canvas.classList.toggle('zoomed'); };
+  scroll.appendChild(canvas);
+  dWrap.appendChild(dBar); dWrap.appendChild(scroll);
+  return dWrap;
+}
+
 async function renderDiagramForEntry() {
   const proj = getActiveProject(); if (!proj) return;
   const i = APP.verifyIndex;
@@ -896,16 +923,8 @@ async function renderDiagramForEntry() {
       const viewport = page.getViewport({ scale: 1.5 });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width; canvas.height = viewport.height;
-      canvas.style.maxWidth = '100%'; canvas.style.display = 'block';
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      const dWrap = document.createElement('div'); dWrap.className = 'diagram-page-wrap';
-      const dBar = document.createElement('div'); dBar.className = 'diagram-page-bar';
-      const dLbl = document.createElement('span'); dLbl.textContent = 'Diagram – Page ' + p;
-      const dFs = document.createElement('button'); dFs.className = 'btn-sec'; dFs.textContent = '⧆ Fullscreen';
-      dFs.onclick = function() { dWrap.classList.toggle('diagram-fullscreen'); };
-      dBar.appendChild(dLbl); dBar.appendChild(dFs);
-      dWrap.appendChild(dBar); dWrap.appendChild(canvas);
-      container.appendChild(dWrap);
+      container.appendChild(buildDiagramCard(canvas, p));
     } catch(e) { /* skip pages that fail to render */ }
   }
   if (!found) {
@@ -1010,24 +1029,12 @@ async function viewInPdf() {
       const viewport = page.getViewport({ scale: 1.5 });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width; canvas.height = viewport.height;
-      canvas.style.maxWidth = '100%'; canvas.style.display = 'block';
+      canvas.style.display = 'block';
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
       if (isDiagram) {
-        const dWrap = document.createElement('div');
-        dWrap.className = 'diagram-page-wrap';
-        const dBar = document.createElement('div');
-        dBar.className = 'diagram-page-bar';
-        const dLbl = document.createElement('span');
-        dLbl.textContent = 'Diagram – Page ' + p;
-        const dFs = document.createElement('button');
-        dFs.className = 'btn-sec';
-        dFs.textContent = '⧆ Fullscreen';
-        dFs.onclick = () => dWrap.classList.toggle('diagram-fullscreen');
-        dBar.appendChild(dLbl); dBar.appendChild(dFs);
-        dWrap.appendChild(dBar); dWrap.appendChild(canvas);
-        container.appendChild(dWrap);
+        container.appendChild(buildDiagramCard(canvas, p));
       } else {
-        canvas.style.marginBottom = '8px';
+        canvas.style.maxWidth = '100%'; canvas.style.marginBottom = '8px';
         container.appendChild(canvas);
       }
     } catch(e) { /* skip pages that fail to render */ }
