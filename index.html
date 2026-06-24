@@ -74,6 +74,19 @@
     white-space: nowrap;
   }
   .paste-btn:hover { color: var(--text); background: var(--border); }
+  .paste-btn-full {
+    width: 100%;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .paste-btn-full:hover { background: var(--border); }
   textarea {
     width: 100%;
     background: var(--panel);
@@ -347,19 +360,15 @@
   <div class="input-stack">
 
     <div class="input-block">
-      <div class="input-label with-paste">
-        <span>Report Text</span>
-        <button class="paste-btn" onclick="pasteReport()">Paste from clipboard</button>
-      </div>
+      <div class="input-label"><span>Report Text</span></div>
       <textarea id="input" placeholder="Paste report text here..."></textarea>
+      <button class="paste-btn-full" onclick="pasteReport()">Paste from clipboard</button>
     </div>
 
     <div class="input-block">
-      <div class="input-label with-paste">
-        <span>Coordinates</span>
-        <button class="paste-btn" onclick="pasteCoord()">Paste from clipboard</button>
-      </div>
+      <div class="input-label"><span>Coordinates</span></div>
       <textarea id="coordInput" placeholder="Paste DEG/MIN block here..."></textarea>
+      <button class="paste-btn-full" onclick="pasteCoord()">Paste from clipboard</button>
     </div>
 
     <div class="intersection-row">
