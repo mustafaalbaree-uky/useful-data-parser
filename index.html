@@ -1145,9 +1145,22 @@ function togglePdfMode() {
 }
 
 function classifyPage(text) {
+  // Sub-page with a data row "<digit> YES/NO"
   if (/MASTER FILE/i.test(text) && /^\s*\d\s+(YES|NO)\b/im.test(text)) return 'UNIT';
-  if (/MASTER FILE/i.test(text)) return 'MAIN';
+  // Primary form: the label sits alone on its line (the value wraps to the next line)
+  if (/MASTER FILE #\s*$/im.test(text)) return 'MAIN';
+  // Narrative, witness, anything else — ignored
   return 'OTHER';
+}
+
+function extractGps(text) {
+  // grab the first two "DEG: <n>  MIN: <n>" pairs → latitude then longitude
+  const pairs = [...text.matchAll(/DEG:\s*(\d+(?:\.\d+)?)\s*MIN:\s*(\d+(?:\.\d+)?)/gi)];
+  if (pairs.length >= 2) {
+    const [a, b] = pairs;
+    return parseCoordText(`${a[1]}\n${b[1]}\n${a[2]}\n${b[2]}`); // order: latDeg,lonDeg,latMin,lonMin
+  }
+  return '';
 }
 
 function reconstructText(items) {
@@ -1206,12 +1219,11 @@ async function processPdf() {
   for (const p of pages) {
     if (p.type === 'MAIN') {
       if (cur) reports.push(cur);
-      cur = { mainPage: p, unitPages: [], hasDiagram: false };
+      cur = { mainPage: p, unitPages: [] };
     } else if (cur && p.type === 'UNIT') {
       cur.unitPages.push(p);
-    } else if (cur) {
-      cur.hasDiagram = true;
     }
+    // OTHER pages (narrative/witness) are ignored
   }
   if (cur) reports.push(cur);
 
@@ -1224,7 +1236,8 @@ async function processPdf() {
       .filter(a => a.subtype === 'Widget' && a.fieldValue)
       .map(a => String(a.fieldValue))
       .join('\n');
-    const coords = parseCoordText(annotVals);
+    let coords = parseCoordText(annotVals);
+    if (!coords) coords = extractGps(rep.mainPage.text);
     const parsedUnits = rep.unitPages.map(p => parseUnitPage(p.text)).filter(u => u.unitNum);
     const notes = inferNotes(parsedUnits);
     const u = n => (parsedUnits.find(x => x.unitNum === n) || {}).overrideDir || '';
@@ -1233,7 +1246,7 @@ async function processPdf() {
       u(1), u(2), u(3), u(4),
       r.injuries, r.units, notes,
       String(rep.mainPage.pdfPageNum), coords,
-      rep.hasDiagram ? 'Y' : ''
+      ''
     ]);
   }
 
@@ -1295,12 +1308,11 @@ async function diagnosePdf() {
   for (const p of pages) {
     if (p.type === 'MAIN') {
       if (cur) reports.push(cur);
-      cur = { mainPage: p, unitPages: [], hasDiagram: false };
+      cur = { mainPage: p, unitPages: [] };
     } else if (cur && p.type === 'UNIT') {
       cur.unitPages.push(p);
-    } else if (cur) {
-      cur.hasDiagram = true;
     }
+    // OTHER pages (narrative/witness) are ignored
   }
   if (cur) reports.push(cur);
 
@@ -1311,10 +1323,11 @@ async function diagnosePdf() {
     const annotVals = rep.mainPage.annotations
       .filter(a => a.subtype === 'Widget' && a.fieldValue)
       .map(a => String(a.fieldValue)).join('\n');
-    const coords = parseCoordText(annotVals);
+    let coords = parseCoordText(annotVals);
+    if (!coords) coords = extractGps(rep.mainPage.text);
     const parsedUnits = rep.unitPages.map(p => parseUnitPage(p.text)).filter(u => u.unitNum);
     const notes = inferNotes(parsedUnits);
-    lines.push(`Entry ${ri + 1}  (main page ${rep.mainPage.pdfPageNum}, ${rep.unitPages.length} unit page(s)${rep.hasDiagram ? ', has diagram' : ''})`);
+    lines.push(`Entry ${ri + 1}  (main page ${rep.mainPage.pdfPageNum}, ${rep.unitPages.length} unit page(s))`);
     lines.push(`  date=${r.date||'?'}  dow=${r.day||'?'}  time=${r.time||'?'}`);
     lines.push(`  type=${r.type||'?'}  weather/road=${r.weatherRoad||'?'}`);
     lines.push(`  injuries=${r.injuries||'?'}  units=${r.units||'?'}`);
