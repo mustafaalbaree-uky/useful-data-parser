@@ -5,596 +5,314 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Parser</title>
 <style>
-  :root {
-    --bg: #0f1115;
-    --panel: #181b22;
-    --panel2: #1e222b;
-    --border: #2a2f3a;
-    --text: #e6e9ef;
-    --muted: #9aa3b2;
-    --accent: #5b9dff;
-    --accent2: #3a7bd5;
-  }
-  :root.light {
-    --bg: #f4f6f9;
-    --panel: #ffffff;
-    --panel2: #e9ecf1;
-    --border: #cdd2db;
-    --text: #1a1d23;
-    --muted: #5a6370;
-    --accent: #2563eb;
-    --accent2: #1d4ed8;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    padding: 24px;
-    line-height: 1.5;
-  }
-  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-  .header h1 { font-size: 20px; font-weight: 700; }
-  .how-to-btn {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 6px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  .how-to-btn:hover { color: var(--text); background: var(--border); }
-  .input-stack { display: flex; flex-direction: column; gap: 12px; }
-  .input-block { display: flex; flex-direction: column; gap: 6px; }
-  .input-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .5px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .input-label.with-paste {
-    justify-content: flex-start;
-    gap: 12px;
-  }
-  .paste-btn {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 5px 14px;
-    border-radius: 5px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .paste-btn:hover { color: var(--text); background: var(--border); }
-  .paste-btn-full {
-    width: 100%;
-    background: var(--panel2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 15px;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background .15s;
-  }
-  .paste-btn-full:hover { background: var(--border); }
-  textarea {
-    width: 100%;
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 13px;
-    resize: vertical;
-    outline: none;
-    transition: border-color .15s;
-  }
-  textarea:focus { border-color: var(--accent2); }
-  #input { min-height: 180px; }
-  #coordInput { min-height: 100px; }
+:root {
+  --bg: #0f1115; --panel: #181b22; --panel2: #1e222b; --border: #2a2f3a;
+  --text: #e6e9ef; --muted: #9aa3b2; --accent: #5b9dff; --accent2: #3a7bd5;
+}
+:root.light {
+  --bg: #f4f6f9; --panel: #ffffff; --panel2: #e9ecf1; --border: #cdd2db;
+  --text: #1a1d23; --muted: #5a6370; --accent: #2563eb; --accent2: #1d4ed8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
 
-  /* intersection combobox */
-  .intersection-row { display: flex; gap: 12px; }
-  .intersection-row .input-block { flex: 1; min-width: 0; }
-  .combo-wrap { position: relative; }
-  .combo-wrap textarea {
-    min-height: unset;
-    height: 42px;
-    resize: none;
-    font-family: inherit;
-    font-size: 13px;
-    padding: 10px 36px 10px 12px;
-    line-height: 1.4;
-    overflow: hidden;
-  }
-  .combo-wrap textarea:focus { border-color: var(--accent2); }
-  .combo-arrow {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 14px;
-    padding: 2px;
-    line-height: 1;
-  }
-  .combo-arrow:hover { color: var(--text); }
-  .combo-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    z-index: 200;
-    max-height: 200px;
-    overflow-y: auto;
-    box-shadow: 0 4px 16px rgba(0,0,0,.4);
-  }
-  .combo-dropdown.open { display: block; }
-  .combo-option {
-    padding: 8px 12px;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .combo-option:hover { background: var(--panel2); }
-  .combo-option-del {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 14px;
-    cursor: pointer;
-    padding: 0 2px;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-  .combo-option-del:hover { color: #e05c5c; }
-  .combo-empty {
-    padding: 10px 12px;
-    color: var(--muted);
-    font-size: 13px;
-    font-style: italic;
-  }
+.screen { display: none; }
+.screen.active { display: block; }
 
-  .fields-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-  .field-block { display: flex; flex-direction: column; gap: 6px; }
-  .field-block .input-label { justify-content: flex-start; }
-  .field-block input[type=text] {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 8px 11px;
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color .15s;
-    width: 110px;
-  }
-  .field-block input[type=text]:focus { border-color: var(--accent2); }
-  .field-block textarea#pageNum {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 8px 11px;
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color .15s;
-    width: 110px;
-    height: 40px;
-    min-height: 40px;
-    resize: vertical;
-  }
-  .field-block textarea#pageNum:focus { border-color: var(--accent2); }
-  .page-row { display: flex; gap: 8px; align-items: flex-start; }
-  .arrow-adjust-btn {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 9px 11px;
-    border-radius: 7px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background .15s, color .15s, border-color .15s;
-  }
-  .arrow-adjust-btn:hover { color: var(--text); background: var(--border); }
-  .arrow-adjust-btn.active {
-    background: var(--accent2);
-    border-color: var(--accent2);
-    color: #fff;
-  }
-  .check-block { display: flex; flex-direction: column; gap: 6px; }
-  .check-block .input-label { justify-content: flex-start; }
-  .check-inner {
-    display: flex; align-items: center; gap: 8px;
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 7px; padding: 8px 11px;
-    cursor: pointer; user-select: none;
-  }
-  .check-inner input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent2); cursor: pointer; }
-  .check-inner span { font-size: 13px; }
+/* topbar */
+.topbar { display: flex; align-items: center; gap: 10px; padding: 12px 24px; background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+.topbar-title { font-size: 15px; font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-back { background: none; border: none; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
+.topbar-back:hover { color: var(--text); }
+.topbar-action { background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.topbar-action:hover { color: var(--text); background: var(--border); }
 
-  /* unit mode toast */
-  .unit-toast {
-    position: fixed;
-    top: 22px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-6px);
-    background: var(--accent2);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 700;
-    padding: 7px 20px;
-    border-radius: 20px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .2s, transform .2s;
-    z-index: 400;
-    white-space: nowrap;
-  }
-  .unit-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* menu */
+.menu-body { padding: 24px; max-width: 700px; margin: 0 auto; }
+.menu-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.menu-header h1 { font-size: 20px; font-weight: 700; }
+.project-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.project-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+.project-card-info { flex: 1; min-width: 0; }
+.project-card-name { font-size: 14px; font-weight: 700; }
+.project-card-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.project-card-open { background: var(--accent2); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.project-card-open:hover { background: var(--accent); }
+.project-card-del { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px; line-height: 1; }
+.project-card-del:hover { color: #e05c5c; }
+.menu-empty { color: var(--muted); font-style: italic; font-size: 14px; text-align: center; padding: 32px 0; }
 
-  /* unit mode panel */
-  .unit-mode-panel {
-    background: var(--panel);
-    border: 2px solid var(--accent2);
-    border-radius: 8px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .unit-mode-header { display: flex; align-items: center; justify-content: space-between; }
-  .unit-mode-title {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: .6px;
-  }
-  .unit-mode-title kbd {
-    font-size: 10px;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1px 6px;
-    margin-left: 6px;
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .unit-mode-close {
-    background: none; border: none; color: var(--muted);
-    font-size: 18px; cursor: pointer; line-height: 1; padding: 0;
-  }
-  .unit-mode-close:hover { color: var(--text); }
+/* create */
+.create-body { padding: 24px; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.create-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 6px; }
+.create-input { display: block; width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: inherit; outline: none; }
+.create-input:focus { border-color: var(--accent2); }
 
-  /* unit cards */
-  .unit-cards { display: flex; flex-direction: column; gap: 8px; }
-  .unit-card { background: var(--panel2); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
-  .unit-card-head { background: var(--border); padding: 5px 12px; font-size: 12px; font-weight: 700; color: var(--text); }
-  .unit-card-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
-  .unit-card-row { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; }
-  .unit-card-lbl { color: var(--muted); font-weight: 600; min-width: 58px; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; padding-top: 2px; flex-shrink: 0; }
-  .unit-dir-sel {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 3px 8px;
-    font-size: 12px;
-    font-family: inherit;
-    outline: none;
-    cursor: pointer;
-  }
-  .unit-dir-sel:focus { border-color: var(--accent2); }
-  .unit-no-data { color: var(--muted); font-style: italic; }
-  .unit-factor-bad { color: #e07070; font-weight: 600; }
-  .unit-factor-ok { color: var(--muted); }
+/* table screen */
+.table-body { padding: 24px; }
+.manual-entry-toggle { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; padding: 5px 13px; border-radius: 6px; cursor: pointer; margin-bottom: 14px; }
+.manual-entry-toggle:hover { color: var(--text); background: var(--panel2); }
+.manual-entry-panel { display: none; margin-bottom: 20px; }
+.manual-entry-panel.open { display: block; }
+.manual-entry-inner { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 
-  /* notes suggestion */
-  .notes-suggestion-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
-  .notes-suggestion-input {
-    width: 100%;
-    background: var(--panel2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 8px 12px;
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
-    resize: vertical;
-    min-height: 38px;
-    transition: border-color .15s;
-  }
-  .notes-suggestion-input:focus { border-color: var(--accent2); }
-  .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
-  .btn-primary {
-    width: 100%;
-    background: var(--accent2);
-    color: #fff;
-    border: none;
-    padding: 15px;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background .15s;
-  }
-  .btn-primary:hover { background: var(--accent); }
-  .output-section { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px;
-    overflow-x: auto;
-  }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; white-space: nowrap; }
-  th { background: var(--panel2); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
-  tr:nth-child(even) td { background: var(--panel2); }
-  td.copy-cell { border-left: none; padding: 4px 8px; }
-  th.copy-col { border-left: none; width: 1px; }
-  .empty { color: var(--muted); font-style: italic; padding: 16px; text-align: center; font-size: 13px; }
-  .btn-copy-clear {
-    width: 100%;
-    background: var(--panel2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 13px;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background .15s;
-  }
-  .btn-copy-clear:hover { background: var(--border); }
-  .secondary-row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn-sec {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 6px 13px;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  .btn-sec:hover { color: var(--text); background: var(--border); }
-  .row-copy {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    padding: 3px 10px;
-    font-size: 11px;
-    font-weight: 500;
-    border-radius: 5px;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .row-copy:hover { background: var(--border); color: var(--text); }
-  .modal-backdrop {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.6);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-  }
-  .modal-backdrop.open { display: flex; }
-  .modal {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px;
-    max-width: 540px;
-    width: 90%;
-    position: relative;
-  }
-  .modal h2 { font-size: 16px; margin-bottom: 16px; }
-  .modal ol { padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; color: var(--text); }
-  .modal ol li { line-height: 1.6; }
-  .modal-close {
-    position: absolute; top: 16px; right: 16px;
-    background: none; border: none; color: var(--muted);
-    font-size: 20px; cursor: pointer; line-height: 1;
-  }
-  .modal-close:hover { color: var(--text); }
-  .theme-toggle {
-    position: fixed;
-    bottom: 18px;
-    right: 18px;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 6px 14px;
-    border-radius: 20px;
-    cursor: pointer;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: background .15s, color .15s;
-  }
-  .theme-toggle:hover { color: var(--text); background: var(--border); }
-tr.draft-row td { background: rgba(91,157,255,0.08) !important; cursor: pointer; }
-tr.draft-row td:first-child::before { content:"DRAFT "; font-size:10px; font-weight:700; color:var(--accent); letter-spacing:.5px; }
+/* shared form elements */
+.input-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; justify-content: space-between; }
+.input-block { display: flex; flex-direction: column; gap: 6px; }
+.paste-btn-full { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 15px; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; }
+.paste-btn-full:hover { background: var(--border); }
+textarea { width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; resize: vertical; outline: none; transition: border-color .15s; }
+textarea:focus { border-color: var(--accent2); }
+#input { min-height: 180px; }
+#coordInput { min-height: 100px; }
+.intersection-row { display: flex; gap: 12px; }
+.intersection-row .input-block { flex: 1; min-width: 0; }
+.combo-wrap { position: relative; }
+.combo-wrap textarea { min-height: unset; height: 42px; resize: none; font-family: inherit; font-size: 13px; padding: 10px 36px 10px 12px; line-height: 1.4; overflow: hidden; }
+.combo-arrow { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px; line-height: 1; }
+.combo-arrow:hover { color: var(--text); }
+.combo-dropdown { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; z-index: 200; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+.combo-dropdown.open { display: block; }
+.combo-option { padding: 8px 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.combo-option:hover { background: var(--panel2); }
+.combo-option-del { background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+.combo-option-del:hover { color: #e05c5c; }
+.combo-empty { padding: 10px 12px; color: var(--muted); font-size: 13px; font-style: italic; }
+.fields-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.field-block { display: flex; flex-direction: column; gap: 6px; }
+.field-block .input-label { justify-content: flex-start; }
+.field-block textarea#pageNum { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 8px 11px; font-size: 13px; font-family: inherit; outline: none; width: 110px; height: 40px; min-height: 40px; resize: vertical; }
+.field-block textarea#pageNum:focus { border-color: var(--accent2); }
+.page-row { display: flex; gap: 8px; align-items: flex-start; }
+.arrow-adjust-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; padding: 9px 11px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.arrow-adjust-btn:hover { color: var(--text); background: var(--border); }
+.arrow-adjust-btn.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+.check-block { display: flex; flex-direction: column; gap: 6px; }
+.check-block .input-label { justify-content: flex-start; }
+.check-inner { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 7px; padding: 8px 11px; cursor: pointer; user-select: none; }
+.check-inner input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent2); cursor: pointer; }
+.check-inner span { font-size: 13px; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+.btn-primary { width: 100%; background: var(--accent2); color: #fff; border: none; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; }
+.btn-primary:hover { background: var(--accent); }
+.btn-sec { background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; padding: 6px 13px; border-radius: 6px; cursor: pointer; }
+.btn-sec:hover { color: var(--text); background: var(--border); }
+
+/* table */
+.output-section { display: flex; flex-direction: column; gap: 10px; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; white-space: nowrap; }
+th { background: var(--panel2); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+tr:nth-child(even) td { background: var(--panel2); }
+td.copy-cell { border-left: none; padding: 4px 8px; }
+th.copy-col { border-left: none; width: 1px; }
+.empty { color: var(--muted); font-style: italic; padding: 16px; text-align: center; font-size: 13px; }
+.secondary-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row-copy { background: var(--panel2); border: 1px solid var(--border); padding: 3px 10px; font-size: 11px; font-weight: 500; border-radius: 5px; color: var(--muted); cursor: pointer; }
+.row-copy:hover { background: var(--border); color: var(--text); }
+tr.unverified-row td { background: rgba(91,157,255,0.07) !important; }
+tr.table-row { cursor: pointer; }
+tr.table-row:hover td { background: rgba(91,157,255,0.12) !important; }
+
+/* verify screen */
+.verify-body { padding: 24px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.verify-progress-wrap { height: 4px; background: var(--panel2); border-radius: 2px; overflow: hidden; }
+.verify-progress-bar { height: 100%; background: var(--accent2); transition: width .3s; }
+.verify-nav { display: flex; align-items: center; gap: 12px; }
+.verify-nav-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); font-size: 18px; font-weight: 700; padding: 7px 18px; border-radius: 8px; cursor: pointer; }
+.verify-nav-btn:hover { background: var(--border); }
+.verify-nav-btn:disabled { opacity: .3; cursor: default; }
+.verify-counter { flex: 1; text-align: center; font-size: 13px; color: var(--muted); font-weight: 600; }
+.verify-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.verify-info-cell { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; }
+.verify-info-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+.verify-info-value { font-size: 14px; color: var(--text); }
+.verify-fields { display: flex; flex-direction: column; gap: 7px; }
+.verify-field { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+.verify-field.unverified { border-color: var(--accent2); background: rgba(91,157,255,0.05); }
+.verify-field-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; width: 110px; flex-shrink: 0; }
+.verify-field-val { flex: 1; font-size: 14px; background: transparent; border: none; color: var(--text); font-family: inherit; outline: none; padding: 0; min-width: 0; }
+.verify-field.unverified .verify-field-val { border-bottom: 1px dashed var(--accent2); }
+.verify-btn { background: var(--accent2); border: none; color: #fff; font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 5px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.verify-btn:hover { background: var(--accent); }
+.verify-check { color: #4caf50; font-size: 16px; flex-shrink: 0; }
+.verify-edit-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 11px; padding: 3px 9px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+.verify-edit-btn:hover { color: var(--text); background: var(--panel2); }
+.verify-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .verify-bottom { grid-template-columns: 1fr; } }
+.verify-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.verify-panel-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.verify-narrative { font-size: 12px; color: var(--text); max-height: 240px; overflow-y: auto; white-space: pre-wrap; font-family: ui-monospace, monospace; line-height: 1.5; }
+.verify-empty-text { color: var(--muted); font-style: italic; font-size: 13px; }
+#pdfPageCanvas { max-width: 100%; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px; display: none; }
+
+/* modal */
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
+.modal-backdrop.open { display: flex; }
+.modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px; max-width: 540px; width: 90%; position: relative; }
+.modal h2 { font-size: 16px; margin-bottom: 16px; }
+.modal ol { padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; color: var(--text); }
+.modal ol li { line-height: 1.6; }
+.modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
+.modal-close:hover { color: var(--text); }
+
+/* theme toggle */
+.theme-toggle { position: fixed; bottom: 18px; right: 18px; background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 20px; cursor: pointer; z-index: 50; }
+.theme-toggle:hover { color: var(--text); background: var(--border); }
 </style>
 </head>
 <body>
 
-  <div class="header">
-    <h1>Data Parser</h1>
-    <button class="how-to-btn" onclick="document.getElementById('howToModal').classList.add('open')">How to use</button>
+<!-- Screen: Menu -->
+<div id="screen-menu" class="screen active">
+  <div class="menu-body">
+    <div class="menu-header">
+      <h1>Data Parser</h1>
+      <button class="topbar-action" onclick="document.getElementById('howToModal').classList.add('open')">How to use</button>
+    </div>
+    <div id="projectList" class="project-list"></div>
+    <button class="btn-primary" onclick="showScreen('create')">New Project</button>
   </div>
+</div>
 
-  <div class="input-stack">
-
-    <div class="input-block">
-      <div class="input-label"><span>Report Text</span></div>
-      <textarea id="input" placeholder="Paste report text here..."></textarea>
-      <button class="paste-btn-full" onclick="pasteReport()">Paste from clipboard</button>
+<!-- Screen: Create -->
+<div id="screen-create" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="showScreen('menu')">← Back</button>
+    <span class="topbar-title">New Project</span>
+  </div>
+  <div class="create-body">
+    <div>
+      <label class="create-label" for="createPdfInput">PDF File</label>
+      <input type="file" id="createPdfInput" accept=".pdf" class="create-input" onchange="onCreateFileChange(this)">
     </div>
-
-    <div class="input-block">
-      <div class="input-label"><span>Coordinates</span></div>
-      <textarea id="coordInput" placeholder="Paste DEG/MIN block here..."></textarea>
-      <button class="paste-btn-full" onclick="pasteCoord()">Paste from clipboard</button>
+    <div>
+      <label class="create-label" for="createNameInput">Project Name</label>
+      <input type="text" id="createNameInput" class="create-input" placeholder="Enter a name for this project…">
     </div>
+    <div id="createStatus" style="font-size:13px; color:var(--muted); min-height:18px;"></div>
+    <button class="btn-primary" id="createBtn" onclick="processAndCreate()">Process PDF</button>
+  </div>
+</div>
 
-    <div class="intersection-row">
-      <div class="input-block">
-        <div class="input-label"><span>Intersection</span></div>
-        <div class="combo-wrap" id="comboWrap">
-          <textarea id="intersectionInput" placeholder="Type intersection name..." rows="1" autocomplete="off" oninput="onComboInput()" onfocus="openComboDropdown()" onclick="openComboDropdown()" onkeydown="onComboKey(event)"></textarea>
-          <button class="combo-arrow" type="button" onclick="toggleComboDropdown()" tabindex="-1">▾</button>
-          <div class="combo-dropdown" id="comboDropdown"></div>
+<!-- Screen: Table -->
+<div id="screen-table" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="showScreen('menu')">← Projects</button>
+    <span class="topbar-title" id="tableProjectName"></span>
+    <button class="topbar-action" onclick="goToVerify()">Verify View</button>
+  </div>
+  <div class="table-body">
+    <button class="manual-entry-toggle" id="manualEntryToggle" onclick="toggleManualEntry()">+ Manual Entry</button>
+    <div class="manual-entry-panel" id="manualEntryPanel">
+      <div class="manual-entry-inner">
+        <div class="input-block">
+          <div class="input-label"><span>Report Text</span></div>
+          <textarea id="input" placeholder="Paste report text here…"></textarea>
+          <button class="paste-btn-full" onclick="pasteReport()">Paste from clipboard</button>
         </div>
-      </div>
-      <div class="input-block">
-        <div class="input-label"><span>Secondary Intersection</span></div>
-        <div class="combo-wrap">
-          <textarea id="secondaryInput" placeholder="Type secondary intersection (optional)..." rows="1" autocomplete="off" oninput="saveState()"></textarea>
+        <div class="input-block">
+          <div class="input-label"><span>Coordinates</span></div>
+          <textarea id="coordInput" placeholder="Paste DEG/MIN block here…"></textarea>
+          <button class="paste-btn-full" onclick="pasteCoord()">Paste from clipboard</button>
         </div>
-      </div>
-    </div>
-
-    <div class="fields-row">
-      <div class="field-block">
-        <div class="input-label">Page #</div>
-        <div class="page-row">
-          <textarea id="pageNum" placeholder="e.g. 257" rows="1"></textarea>
-          <button type="button" class="arrow-adjust-btn" id="arrowAdjustBtn" onclick="toggleArrowAdjust(event)" title="Use ← / → arrow keys to adjust">◄ ►</button>
+        <div class="intersection-row">
+          <div class="input-block">
+            <div class="input-label"><span>Intersection</span></div>
+            <div class="combo-wrap" id="comboWrap">
+              <textarea id="intersectionInput" placeholder="Type intersection name…" rows="1" autocomplete="off" oninput="onComboInput()" onfocus="openComboDropdown()" onclick="openComboDropdown()" onkeydown="onComboKey(event)"></textarea>
+              <button class="combo-arrow" type="button" onclick="toggleComboDropdown()" tabindex="-1">▾</button>
+              <div class="combo-dropdown" id="comboDropdown"></div>
+            </div>
+          </div>
+          <div class="input-block">
+            <div class="input-label"><span>Secondary Intersection</span></div>
+            <div class="combo-wrap">
+              <textarea id="secondaryInput" placeholder="Type secondary intersection (optional)…" rows="1" autocomplete="off" oninput="saveFormState()"></textarea>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="check-block">
-        <div class="input-label">Has Diagram?</div>
-        <label class="check-inner">
-          <input type="checkbox" id="hasDiagram">
-          <span>Yes</span>
-        </label>
-      </div>
-    </div>
-
-    <hr class="divider">
-    <button class="btn-primary" onclick="parseAndAdd()">Parse Input</button>
-    <button class="btn-sec" style="margin-top:4px;" onclick="toggleUnitMode()">Unit Mode &nbsp;<kbd style="font-size:10px;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1px 5px;">Ctrl+E</kbd></button>
-
-  </div>
-
-  <!-- Unit Mode Panel -->
-  <div id="unitModePanel" class="unit-mode-panel" style="display:none; margin-top:12px;">
-    <div class="unit-mode-header">
-      <span class="unit-mode-title">Unit Mode <kbd>Ctrl+E</kbd></span>
-      <button class="unit-mode-close" onclick="toggleUnitMode()">&times;</button>
-    </div>
-    <div class="input-block">
-      <div class="input-label"><span>Unit Page</span></div>
-      <textarea id="unitPageInput" placeholder="Paste a unit page (Unit 1, Unit 2, etc.)..." style="min-height:110px;"></textarea>
-    </div>
-    <button class="paste-btn-full" onclick="handleUnitPaste()">Parse Unit Page</button>
-    <div class="unit-cards" id="unitCards"></div>
-    <div id="notesSuggestBlock" style="display:none;">
-      <div class="notes-suggestion-lbl">Suggested Notes</div>
-      <textarea class="notes-suggestion-input" id="suggestedNotesInput" placeholder="Auto-generated note — editable before applying..."></textarea>
-    </div>
-    <button id="applyUnitBtn" class="btn-primary" onclick="applyUnitData()" style="display:none;">Apply to Last Row</button>
-    <button class="btn-sec" onclick="clearUnitMode()">Clear Units</button>
-  </div>
-
-  <!-- PDF Mode Panel (hidden; toggle with Ctrl+Shift+Y) -->
-  <div id="pdfModePanel" style="display:none; margin-top:12px; background:var(--panel); border:2px solid var(--accent2); border-radius:8px; padding:16px;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.6px;">
-        PDF Mode <kbd style="font-size:10px; background:var(--panel2); border:1px solid var(--border); border-radius:4px; padding:1px 6px; margin-left:6px; color:var(--muted); font-weight:600;">Ctrl+Shift+Y</kbd>
-      </span>
-      <button onclick="togglePdfMode()" style="background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; line-height:1;">&times;</button>
-    </div>
-    <div style="display:flex; flex-direction:column; gap:10px;">
-      <label style="font-size:12px; font-weight:600; color:var(--muted);">Select PDF file (single entry or batch):</label>
-      <input type="file" id="pdfFileInput" accept=".pdf" style="font-size:13px; color:var(--text);">
-      <div style="display:flex; gap:8px;">
-        <button class="btn-primary" style="flex:1;" onclick="processPdf()">Extract &amp; Parse PDF</button>
-        <button class="btn-sec" onclick="diagnosePdf()">Diagnose</button>
-      </div>
-      <div id="pdfStatus" style="font-size:12px; color:var(--muted); min-height:18px;"></div>
-      <div id="pdfDiagBlock" style="display:none; flex-direction:column; gap:6px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;">Diagnostic output</span>
-          <button class="btn-sec" style="font-size:11px; padding:2px 10px;" onclick="copyDiag()">Copy</button>
+        <div class="fields-row">
+          <div class="field-block">
+            <div class="input-label">Page #</div>
+            <div class="page-row">
+              <textarea id="pageNum" placeholder="e.g. 257" rows="1"></textarea>
+              <button type="button" class="arrow-adjust-btn" id="arrowAdjustBtn" onclick="toggleArrowAdjust(event)" title="Use ← / → arrow keys to adjust">◄ ►</button>
+            </div>
+          </div>
+          <div class="check-block">
+            <div class="input-label">Has Diagram?</div>
+            <label class="check-inner">
+              <input type="checkbox" id="hasDiagram">
+              <span>Yes</span>
+            </label>
+          </div>
         </div>
-        <textarea id="pdfDiagOutput" readonly style="font-family:monospace; font-size:11px; min-height:200px; resize:vertical; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px;"></textarea>
+        <hr class="divider">
+        <button class="btn-primary" onclick="parseAndAdd()">Parse Input</button>
+        <button class="btn-sec" style="margin-top:4px;" onclick="clearInput()">Clear Input</button>
+      </div>
+    </div>
+    <div class="output-section">
+      <div class="panel">
+        <table id="outTable">
+          <thead>
+            <tr>
+              <th>Intersection</th><th></th><th>Date</th><th>DOW</th><th>Time</th>
+              <th>Collision Type</th><th>Weather/Road</th>
+              <th>Unit 1</th><th>Unit 2</th><th>Unit 3</th><th>Unit 4</th>
+              <th>Injuries</th><th># Units</th><th>Notes</th>
+              <th>PDF Page</th><th>GPS</th><th>Has Diagram?</th>
+              <th class="copy-col"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td class="empty" colspan="18">No entries yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="secondary-row">
+        <button class="btn-sec" onclick="copyTSV()">Copy Table (TSV)</button>
+        <button class="btn-sec" onclick="downloadCSV()">Download CSV</button>
+        <button class="btn-sec" onclick="clearTable()">Clear Table</button>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Unit Mode Toast -->
-  <div class="unit-toast" id="unitToast"></div>
-
-  <div class="output-section">
-    <div class="panel">
-      <table id="outTable">
-        <thead>
-          <tr>
-            <th>Intersection</th>
-            <th></th>
-            <th>Date</th>
-            <th>DOW</th>
-            <th>Time</th>
-            <th>Collision Type</th>
-            <th>Weather/Road</th>
-            <th>Unit 1</th>
-            <th>Unit 2</th>
-            <th>Unit 3</th>
-            <th>Unit 4</th>
-            <th>Injuries</th>
-            <th># Units</th>
-            <th>Notes</th>
-            <th>PDF Page</th>
-            <th>GPS</th>
-            <th>Has Diagram?</th>
-            <th class="copy-col"></th>
-          </tr>
-        </thead>
-        <tbody id="tbody">
-          <tr><td class="empty" colspan="18">No rows yet — fill in the fields above and click Parse.</td></tr>
-        </tbody>
-      </table>
+<!-- Screen: Verify -->
+<div id="screen-verify" class="screen">
+  <div class="topbar">
+    <button class="topbar-back" onclick="showScreen('table')">← Table</button>
+    <span class="topbar-title" id="verifyProjectName"></span>
+    <span id="verifyPctLabel" style="font-size:12px; color:var(--muted); white-space:nowrap;"></span>
+    <button class="topbar-action" onclick="showScreen('table')">Table View</button>
+  </div>
+  <div class="verify-body">
+    <div class="verify-progress-wrap">
+      <div class="verify-progress-bar" id="verifyProgressBar" style="width:0%"></div>
     </div>
-    <button class="btn-copy-clear" onclick="copyAndClearAll()">Copy &amp; Clear</button>
-    <div class="secondary-row">
-      <button class="btn-sec" onclick="clearInput()">Clear Input</button>
-      <button class="btn-sec" onclick="clearTable()">Clear Table</button>
-      <button class="btn-sec" onclick="copyTSV()">Copy Table (TSV)</button>
-      <button class="btn-sec" onclick="downloadCSV()">Download CSV</button>
+    <div class="verify-nav">
+      <button class="verify-nav-btn" id="verifyPrevBtn" onclick="navigateVerify(-1)">◄</button>
+      <span class="verify-counter" id="verifyEntryLabel"></span>
+      <button class="verify-nav-btn" id="verifyNextBtn" onclick="navigateVerify(1)">►</button>
+    </div>
+    <div class="verify-info-grid" id="verifyInfoGrid"></div>
+    <div class="verify-fields" id="verifyFields"></div>
+    <div class="verify-bottom">
+      <div class="verify-panel">
+        <div class="verify-panel-label">Supporting text</div>
+        <div id="verifyNarrative"></div>
+      </div>
+      <div class="verify-panel">
+        <div class="verify-panel-label">PDF Page</div>
+        <button class="btn-sec" onclick="viewInPdf()" style="align-self:flex-start;">View in PDF</button>
+        <canvas id="pdfPageCanvas"></canvas>
+      </div>
     </div>
   </div>
+</div>
 
 <!-- How to use modal -->
 <div class="modal-backdrop" id="howToModal" onclick="if(event.target===this)this.classList.remove('open')">
@@ -602,24 +320,12 @@ tr.draft-row td:first-child::before { content:"DRAFT "; font-size:10px; font-wei
     <button class="modal-close" onclick="document.getElementById('howToModal').classList.remove('open')">&times;</button>
     <h2>How to use</h2>
     <ol>
-      <li>
-        <strong>Report Text</strong> — highlight from the report header down to the school bus section at the bottom, then paste into the Report Text box.
-      </li>
-      <li>
-        <strong>Coordinates</strong> — highlight from the first <em>"DEG:"</em> label down through the last digit of the bottom <em>"MIN"</em> value, then paste into the Coordinates box.
-      </li>
-      <li>
-        <strong>Intersection</strong> — type the intersection name or pick a previously used one from the dropdown.
-      </li>
-      <li>
-        <strong>Page #</strong> — type the page number for this report.
-      </li>
-      <li>
-        Click <strong>Parse Input</strong> — a row appears in the output table. Unit 1–4 and Notes columns are left blank for manual entry after pasting.
-      </li>
-      <li>
-        Click <strong>Copy &amp; Clear</strong> — copies all rows as tab-separated values (ready to paste into Excel) and clears the form and table.
-      </li>
+      <li><strong>New Project</strong> — click New Project, select a PDF file, give the project a name, and click Process PDF. All entries are extracted automatically.</li>
+      <li><strong>Table view</strong> — shows all extracted entries. Rows highlighted in blue have unverified fields. Click any row to open the Verification view for that entry.</li>
+      <li><strong>Verification view</strong> — review each highlighted field. Edit the value if needed, then click <em>Verify</em> to confirm it. Use ◄ ► to move between entries.</li>
+      <li><strong>View in PDF</strong> — in the Verification view, click this button and re-select your PDF file to render the source page as an image for reference.</li>
+      <li><strong>Export</strong> — use <em>Copy Table (TSV)</em> to copy all rows for pasting into a spreadsheet, or <em>Download CSV</em> to save a file.</li>
+      <li><strong>Manual Entry</strong> — click <em>+ Manual Entry</em> in the table view to add a single entry by pasting report text and coordinates.</li>
     </ol>
   </div>
 </div>
@@ -631,14 +337,362 @@ tr.draft-row td:first-child::before { content:"DRAFT "; font-size:10px; font-wei
 <script>
 const LS_KEY = 'dp_state_v3';
 const LS_INTERSECTIONS = 'dp_intersections_v1';
+const LS_PROJECTS = 'dp_projects_v1';
+const COL_COUNT = 17;
 
-// ── intersection combobox ────────────────────────────────────────────────────
+const APP = { projectId: null, verifyIndex: 0 };
+
+// ── Project store ─────────────────────────────────────────────────────────────
+function getProjects() {
+  try { return JSON.parse(localStorage.getItem(LS_PROJECTS) || '[]'); } catch(e) { return []; }
+}
+function saveProjects(list) {
+  try { localStorage.setItem(LS_PROJECTS, JSON.stringify(list)); } catch(e) {}
+}
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function getActiveProject() {
+  if (!APP.projectId) return null;
+  return getProjects().find(p => p.id === APP.projectId) || null;
+}
+function updateProject(proj) {
+  const list = getProjects();
+  const idx = list.findIndex(p => p.id === proj.id);
+  if (idx >= 0) list[idx] = proj; else list.push(proj);
+  saveProjects(list);
+}
+
+// ── Screen management ─────────────────────────────────────────────────────────
+function showScreen(name, opts) {
+  opts = opts || {};
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  if (name === 'menu') renderMenu();
+  if (name === 'table') renderTableView();
+  if (name === 'verify') {
+    if (opts.index !== undefined) APP.verifyIndex = opts.index;
+    renderVerifyView();
+  }
+}
+
+function goToVerify() {
+  const proj = getActiveProject();
+  if (!proj || !proj.rows.length) return;
+  showScreen('verify', { index: APP.verifyIndex || 0 });
+}
+
+// ── Menu ──────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function renderMenu() {
+  const projects = getProjects();
+  const list = document.getElementById('projectList');
+  if (!projects.length) {
+    list.innerHTML = '<div class="menu-empty">No projects yet — click New Project to get started.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  for (const proj of [...projects].reverse()) {
+    const date = new Date(proj.createdAt).toLocaleDateString();
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    card.innerHTML =
+      '<div class="project-card-info">' +
+        '<div class="project-card-name">' + esc(proj.name) + '</div>' +
+        '<div class="project-card-meta">' + proj.rows.length + ' entries &middot; ' + date + ' &middot; ' + esc(proj.pdfName) + '</div>' +
+      '</div>' +
+      '<button class="project-card-open">Open</button>' +
+      '<button class="project-card-del" title="Delete">\xd7</button>';
+    card.querySelector('.project-card-open').onclick = () => openProject(proj.id);
+    card.querySelector('.project-card-del').onclick = () => deleteProject(proj.id);
+    list.appendChild(card);
+  }
+}
+function openProject(id) {
+  APP.projectId = id;
+  APP.verifyIndex = 0;
+  showScreen('table');
+}
+function deleteProject(id) {
+  if (!confirm('Delete this project? This cannot be undone.')) return;
+  saveProjects(getProjects().filter(p => p.id !== id));
+  renderMenu();
+}
+
+// ── Create ────────────────────────────────────────────────────────────────────
+function onCreateFileChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const nameInput = document.getElementById('createNameInput');
+  if (!nameInput.value.trim()) nameInput.value = file.name.replace(/\.pdf$/i, '');
+}
+
+async function processAndCreate() {
+  const fileInput = document.getElementById('createPdfInput');
+  const nameInput = document.getElementById('createNameInput');
+  const status = document.getElementById('createStatus');
+  const btn = document.getElementById('createBtn');
+  const file = fileInput.files[0];
+  if (!file) { status.textContent = 'Please select a PDF file first.'; return; }
+  const name = nameInput.value.trim() || file.name.replace(/\.pdf$/i, '');
+  btn.disabled = true;
+  const result = await processPdfForProject(file, status);
+  btn.disabled = false;
+  if (!result) return;
+  const proj = {
+    id: genId(),
+    name,
+    pdfName: file.name,
+    createdAt: new Date().toISOString(),
+    rows: result.rows,
+    narrative: result.narrative,
+    verified: {},
+  };
+  updateProject(proj);
+  APP.projectId = proj.id;
+  APP.verifyIndex = 0;
+  fileInput.value = '';
+  nameInput.value = '';
+  status.textContent = '';
+  showScreen('table');
+}
+
+// ── Table view ────────────────────────────────────────────────────────────────
+function isRowVerified(verified, idx) {
+  const v = (verified || {})[idx];
+  if (!v) return false;
+  return ['collisionType','u1','u2','u3','u4','notes'].every(k => v[k]);
+}
+
+function renderTableView() {
+  const proj = getActiveProject();
+  if (!proj) { showScreen('menu'); return; }
+  document.getElementById('tableProjectName').textContent = proj.name;
+  renderRows(proj.rows, proj.verified || {});
+}
+
+function renderRows(rows, verified) {
+  verified = verified || {};
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td class="empty" colspan="' + (COL_COUNT + 1) + '">No entries yet.</td></tr>';
+    return;
+  }
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const tr = document.createElement('tr');
+    tr.className = 'table-row';
+    if (!isRowVerified(verified, i)) tr.classList.add('unverified-row');
+    tr.dataset.rowIdx = String(i);
+    row.forEach(function(v) {
+      const td = document.createElement('td');
+      td.textContent = v || '';
+      tr.appendChild(td);
+    });
+    const copyTd = document.createElement('td'); copyTd.className = 'copy-cell';
+    const btn = document.createElement('button'); btn.className = 'row-copy'; btn.textContent = 'Copy';
+    btn.onclick = function(e) { e.stopPropagation(); copyRowEl(btn); };
+    copyTd.appendChild(btn); tr.appendChild(copyTd);
+    tr.onclick = function(e) {
+      if (e.target.closest('.row-copy')) return;
+      APP.verifyIndex = i;
+      showScreen('verify', { index: i });
+    };
+    tbody.appendChild(tr);
+  }
+}
+
+function getRows() {
+  return [...document.querySelectorAll('#outTable tbody tr')]
+    .filter(r => !r.querySelector('.empty'))
+    .map(r => [...r.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent));
+}
+
+function copyRowEl(btn) {
+  const tr = btn.closest('tr');
+  const vals = [...tr.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent);
+  navigator.clipboard.writeText(vals.join('\t'));
+  const orig = btn.textContent; btn.textContent = 'Copied!';
+  setTimeout(function() { btn.textContent = orig; }, 1200);
+}
+
+function toggleManualEntry() {
+  const panel = document.getElementById('manualEntryPanel');
+  const btn = document.getElementById('manualEntryToggle');
+  const open = panel.classList.toggle('open');
+  btn.textContent = open ? '− Manual Entry' : '+ Manual Entry';
+}
+
+function tableToTSV() { return getRows().map(r => r.join('\t')).join('\n'); }
+function copyTSV() { navigator.clipboard.writeText(tableToTSV()); }
+function downloadCSV() {
+  const rows = getRows();
+  const csv = rows.map(r => r.map(c => '"' + c.replace(/"/g,'""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'export.csv'; a.click();
+}
+function clearTable() {
+  const proj = getActiveProject();
+  if (!proj || !confirm('Clear all entries from this project? This cannot be undone.')) return;
+  proj.rows = []; proj.narrative = []; proj.verified = {};
+  updateProject(proj);
+  renderTableView();
+}
+
+// ── Verify view ───────────────────────────────────────────────────────────────
+const VERIFY_FIELDS = [
+  { key: 'collisionType', label: 'Collision Type', col: 5 },
+  { key: 'u1',            label: 'Unit 1',          col: 7 },
+  { key: 'u2',            label: 'Unit 2',          col: 8 },
+  { key: 'u3',            label: 'Unit 3',          col: 9 },
+  { key: 'u4',            label: 'Unit 4',          col: 10 },
+  { key: 'notes',         label: 'Notes',            col: 13 },
+];
+const INFO_FIELDS = [
+  { label: 'Date', col: 2 }, { label: 'Day', col: 3 }, { label: 'Time', col: 4 },
+  { label: 'Weather/Road', col: 6 }, { label: 'Injuries', col: 11 },
+  { label: '# Units', col: 12 }, { label: 'GPS', col: 15 }, { label: 'PDF Page', col: 14 },
+];
+
+function renderVerifyView() {
+  const proj = getActiveProject();
+  if (!proj || !proj.rows.length) { showScreen('table'); return; }
+  const i = APP.verifyIndex;
+  const row = proj.rows[i];
+  const total = proj.rows.length;
+  const verified = proj.verified || {};
+
+  document.getElementById('verifyProjectName').textContent = proj.name;
+
+  let verifiedCount = 0;
+  for (let ri = 0; ri < total; ri++) { if (isRowVerified(verified, ri)) verifiedCount++; }
+  const pct = Math.round(verifiedCount / total * 100);
+  document.getElementById('verifyProgressBar').style.width = pct + '%';
+  document.getElementById('verifyPctLabel').textContent = pct + '% verified';
+  document.getElementById('verifyEntryLabel').textContent = 'Entry ' + (i + 1) + ' of ' + total;
+  document.getElementById('verifyPrevBtn').disabled = i === 0;
+  document.getElementById('verifyNextBtn').disabled = i === total - 1;
+
+  // info grid
+  const grid = document.getElementById('verifyInfoGrid');
+  grid.innerHTML = '';
+  INFO_FIELDS.forEach(function(f) {
+    const cell = document.createElement('div'); cell.className = 'verify-info-cell';
+    const lbl = document.createElement('div'); lbl.className = 'verify-info-label'; lbl.textContent = f.label;
+    const val = document.createElement('div'); val.className = 'verify-info-value'; val.textContent = row[f.col] || '—';
+    cell.appendChild(lbl); cell.appendChild(val);
+    grid.appendChild(cell);
+  });
+
+  // verify fields
+  const fieldsEl = document.getElementById('verifyFields');
+  fieldsEl.innerHTML = '';
+  const v = verified[i] || {};
+  VERIFY_FIELDS.forEach(function(f) {
+    const isV = !!v[f.key];
+    const div = document.createElement('div');
+    div.className = 'verify-field ' + (isV ? 'verified' : 'unverified');
+
+    const lbl = document.createElement('div'); lbl.className = 'verify-field-label'; lbl.textContent = f.label;
+    const inp = document.createElement('input'); inp.className = 'verify-field-val'; inp.type = 'text';
+    inp.value = row[f.col] || '';
+    inp.readOnly = isV;
+
+    div.appendChild(lbl); div.appendChild(inp);
+
+    if (isV) {
+      const chk = document.createElement('span'); chk.className = 'verify-check'; chk.textContent = '✓';
+      const editBtn = document.createElement('button'); editBtn.className = 'verify-edit-btn'; editBtn.textContent = 'Edit';
+      editBtn.onclick = function() { unverifyField(f.key); };
+      div.appendChild(chk); div.appendChild(editBtn);
+    } else {
+      const vBtn = document.createElement('button'); vBtn.className = 'verify-btn'; vBtn.textContent = 'Verify';
+      vBtn.onclick = function() { verifyField(f.key, f.col, inp.value); };
+      div.appendChild(vBtn);
+    }
+    fieldsEl.appendChild(div);
+  });
+
+  // narrative
+  const narr = ((proj.narrative || [])[i] || '').trim();
+  const narrEl = document.getElementById('verifyNarrative');
+  if (narr) {
+    narrEl.className = 'verify-narrative'; narrEl.textContent = narr;
+  } else {
+    narrEl.className = 'verify-empty-text'; narrEl.textContent = 'No supporting text for this entry.';
+  }
+
+  // reset canvas
+  const canvas = document.getElementById('pdfPageCanvas');
+  canvas.style.display = 'none';
+  canvas.width = 0; canvas.height = 0;
+}
+
+function verifyField(fieldKey, col, newValue) {
+  const proj = getActiveProject();
+  if (!proj) return;
+  const i = APP.verifyIndex;
+  if (!proj.verified) proj.verified = {};
+  if (!proj.verified[i]) proj.verified[i] = {};
+  proj.verified[i][fieldKey] = true;
+  proj.rows[i][col] = newValue;
+  updateProject(proj);
+  renderVerifyView();
+}
+
+function unverifyField(fieldKey) {
+  const proj = getActiveProject();
+  if (!proj) return;
+  const i = APP.verifyIndex;
+  if (proj.verified && proj.verified[i]) proj.verified[i][fieldKey] = false;
+  updateProject(proj);
+  renderVerifyView();
+}
+
+function navigateVerify(delta) {
+  const proj = getActiveProject();
+  if (!proj) return;
+  const next = APP.verifyIndex + delta;
+  if (next < 0 || next >= proj.rows.length) return;
+  APP.verifyIndex = next;
+  renderVerifyView();
+}
+
+async function viewInPdf() {
+  const proj = getActiveProject();
+  if (!proj) return;
+  const row = proj.rows[APP.verifyIndex];
+  const pdfPageNum = parseInt(row[14], 10);
+  if (isNaN(pdfPageNum)) { alert('No PDF page number stored for this entry.'); return; }
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = '.pdf';
+  fileInput.onchange = async function() {
+    const file = fileInput.files[0]; if (!file) return;
+    const canvas = document.getElementById('pdfPageCanvas');
+    canvas.style.display = 'none';
+    try {
+      const url = URL.createObjectURL(file);
+      const pdf = await pdfjsLib.getDocument({ url }).promise;
+      const page = await pdf.getPage(pdfPageNum);
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      canvas.style.display = 'block';
+      URL.revokeObjectURL(url);
+    } catch(e) { alert('Could not render page: ' + e.message); }
+  };
+  fileInput.click();
+}
+
+// ── Intersection combobox ──────────────────────────────────────────────────────
 function getSavedIntersections() {
   try { return JSON.parse(localStorage.getItem(LS_INTERSECTIONS) || '[]'); } catch(e) { return []; }
 }
 function saveIntersection(val) {
-  val = val.trim();
-  if (!val) return;
+  val = val.trim(); if (!val) return;
   const list = getSavedIntersections().filter(s => s !== val);
   list.unshift(val);
   try { localStorage.setItem(LS_INTERSECTIONS, JSON.stringify(list.slice(0, 100))); } catch(e) {}
@@ -648,68 +702,47 @@ function deleteIntersection(val) {
   try { localStorage.setItem(LS_INTERSECTIONS, JSON.stringify(list)); } catch(e) {}
   renderComboDropdown();
 }
-
 function renderComboDropdown(filter) {
   const dd = document.getElementById('comboDropdown');
   let list = getSavedIntersections();
   if (filter) list = list.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
   dd.innerHTML = '';
-  if (!list.length) {
-    dd.innerHTML = '<div class="combo-empty">No saved intersections</div>';
-    return;
-  }
+  if (!list.length) { dd.innerHTML = '<div class="combo-empty">No saved intersections</div>'; return; }
   for (const item of list) {
-    const div = document.createElement('div');
-    div.className = 'combo-option';
-    const span = document.createElement('span');
-    span.textContent = item;
-    span.style.flex = '1';
-    span.onclick = () => { selectComboItem(item); };
-    const del = document.createElement('button');
-    del.className = 'combo-option-del';
-    del.textContent = '×';
-    del.title = 'Remove';
+    const div = document.createElement('div'); div.className = 'combo-option';
+    const span = document.createElement('span'); span.textContent = item; span.style.flex = '1';
+    span.onclick = () => selectComboItem(item);
+    const del = document.createElement('button'); del.className = 'combo-option-del'; del.textContent = '\xd7'; del.title = 'Remove';
     del.onclick = (e) => { e.stopPropagation(); deleteIntersection(item); };
-    div.appendChild(span);
-    div.appendChild(del);
-    dd.appendChild(div);
+    div.appendChild(span); div.appendChild(del); dd.appendChild(div);
   }
 }
-
 function openComboDropdown() {
-  const dd = document.getElementById('comboDropdown');
   const filter = document.getElementById('intersectionInput').value.trim();
   renderComboDropdown(filter || undefined);
-  dd.classList.add('open');
+  document.getElementById('comboDropdown').classList.add('open');
 }
-function closeComboDropdown() {
-  document.getElementById('comboDropdown').classList.remove('open');
-}
+function closeComboDropdown() { document.getElementById('comboDropdown').classList.remove('open'); }
 function toggleComboDropdown() {
   const dd = document.getElementById('comboDropdown');
-  if (dd.classList.contains('open')) { closeComboDropdown(); }
+  if (dd.classList.contains('open')) closeComboDropdown();
   else { document.getElementById('intersectionInput').focus(); openComboDropdown(); }
 }
 function selectComboItem(val) {
   document.getElementById('intersectionInput').value = val;
-  closeComboDropdown();
-  saveState();
+  closeComboDropdown(); saveFormState();
 }
-function onComboInput() {
-  openComboDropdown();
-  saveState();
-}
+function onComboInput() { openComboDropdown(); saveFormState(); }
 function onComboKey(e) {
   if (e.key === 'Escape') closeComboDropdown();
   if (e.key === 'Enter') { e.preventDefault(); closeComboDropdown(); }
 }
-
-// close dropdown when clicking outside
 document.addEventListener('mousedown', function(e) {
-  if (!document.getElementById('comboWrap').contains(e.target)) closeComboDropdown();
+  const wrap = document.getElementById('comboWrap');
+  if (wrap && !wrap.contains(e.target)) closeComboDropdown();
 });
 
-// ── parsing ──────────────────────────────────────────────────────────────────
+// ── Parsing ───────────────────────────────────────────────────────────────────
 function starred(text) {
   const out = []; const re = /\*([^*]+)\*/g; let m;
   while ((m = re.exec(text)) !== null) out.push(m[1].trim());
@@ -720,25 +753,25 @@ function tidyType(s) { s = stripCode(s).toLowerCase(); return s ? s[0].toUpperCa
 function tidyWord(s) { s = stripCode(s).toLowerCase().trim(); return s ? s[0].toUpperCase() + s.slice(1) : ''; }
 function dayOfWeek(ds) {
   const p = ds.split('/'); if (p.length !== 3) return '';
-  const mo = parseInt(p[0], 10), da = parseInt(p[1], 10), yr = parseInt(p[2], 10);
+  const mo = parseInt(p[0],10), da = parseInt(p[1],10), yr = parseInt(p[2],10);
   if (!mo || !da || !yr) return '';
-  const d = new Date(yr, mo - 1, da); if (isNaN(d)) return '';
+  const d = new Date(yr, mo-1, da); if (isNaN(d)) return '';
   return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
 }
 function normDate(ds) {
   const p = ds.split('/'); if (p.length !== 3) return ds;
-  return `${parseInt(p[0],10)}/${parseInt(p[1],10)}/${p[2]}`;
+  return parseInt(p[0],10) + '/' + parseInt(p[1],10) + '/' + p[2];
 }
 function parseCoordText(raw) {
   const nums = raw.split('\n').map(l => l.trim()).filter(l => /^-?\d+(\.\d+)?$/.test(l)).map(Number);
   if (nums.length < 4) return '';
   const [latDeg, lonDeg, latMin, lonMin] = nums;
-  const pad = n => { const [w, f] = n.toString().split('.'); return w.padStart(2,'0') + (f ? '.' + f : ''); };
-  return `${latDeg} ${pad(latMin)}, -${lonDeg} ${pad(lonMin)}`;
+  const pad = n => { const [w,f] = n.toString().split('.'); return w.padStart(2,'0') + (f ? '.' + f : ''); };
+  return latDeg + ' ' + pad(latMin) + ', -' + lonDeg + ' ' + pad(lonMin);
 }
 function parseReport(raw) {
   const stars = starred(raw);
-  const text = raw.replace(/\*/g, ' ');
+  const text = raw.replace(/\*/g,' ');
   const lines = text.split('\n').map(l => l.trim());
   const r = { date:'', day:'', time:'', type:'', weatherRoad:'', injuries:'', units:'' };
   const dateRe = /\b(\d{1,2}\/\d{1,2}\/\d{4})\b/, timeRe = /\b(\d{1,2}:\d{2})\b/;
@@ -748,7 +781,6 @@ function parseReport(raw) {
   const dl = lines.find(l => /\d+\.\d{3}/.test(l) && /MPH/i.test(l));
   if (dl) { const cl = dl.replace(/\d+\.\d{3}/,' ').replace(/[()]/g,' '); const ints = cl.match(/\b\d+\b/g)||[]; if (ints.length >= 3) { r.injuries = ints[0]; r.units = ints[2]; } }
   else {
-    // fallback: MPH line with a round (non-decimal) speed, e.g. "0 0 2 NO NO 5  MPH"
     const dl2 = lines.find(l => /MPH/i.test(l) && /\b\d+\b/.test(l));
     if (dl2) { const cl = dl2.replace(/\b\d+\s*MPH/i,' ').replace(/[()]/g,' '); const ints = cl.match(/\b\d+\b/g)||[]; if (ints.length >= 3) { r.injuries = ints[0]; r.units = ints[2]; } }
   }
@@ -777,80 +809,9 @@ function parseReport(raw) {
   return r;
 }
 
-// ── table ────────────────────────────────────────────────────────────────────
-const COL_COUNT = 17; // data columns (excluding copy-cell)
-
-function getRows() {
-  return [...document.querySelectorAll('#outTable tbody tr')]
-    .filter(r => !r.querySelector('.empty'))
-    .map(r => [...r.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent));
-}
-function renderRows(rows) {
-  const tbody = document.getElementById('tbody');
-  tbody.innerHTML = '';
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td class="empty" colspan="${COL_COUNT + 1}">No rows yet — fill in the fields above and click Parse.</td></tr>`;
-    return;
-  }
-  for (const row of rows) {
-    const tr = document.createElement('tr');
-    row.forEach(v => { const td = document.createElement('td'); td.textContent = v || ''; tr.appendChild(td); });
-    const copyTd = document.createElement('td'); copyTd.className = 'copy-cell';
-    const btn = document.createElement('button'); btn.className = 'row-copy'; btn.textContent = 'Copy';
-    btn.onclick = () => copyRow(btn); copyTd.appendChild(btn); tr.appendChild(copyTd);
-    tbody.appendChild(tr);
-  }
-}
-function copyRow(btn) {
-  const tr = btn.closest('tr');
-  const vals = [...tr.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent);
-  navigator.clipboard.writeText(vals.join('\t'));
-  const orig = btn.textContent; btn.textContent = 'Copied!';
-  setTimeout(() => btn.textContent = orig, 1200);
-}
-
-// ── state ────────────────────────────────────────────────────────────────────
-function saveState() {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      input: document.getElementById('input').value,
-      coordInput: document.getElementById('coordInput').value,
-      intersection: document.getElementById('intersectionInput').value,
-      secondary: document.getElementById('secondaryInput').value,
-      pageNum: document.getElementById('pageNum').value,
-      hasDiagram: document.getElementById('hasDiagram').checked,
-      rows: getRows()
-    }));
-  } catch(e) {}
-}
-function loadState() {
-  try {
-    const s = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
-    if (s.input) document.getElementById('input').value = s.input;
-    if (s.coordInput) document.getElementById('coordInput').value = s.coordInput;
-    if (s.intersection) document.getElementById('intersectionInput').value = s.intersection;
-    if (s.secondary) document.getElementById('secondaryInput').value = s.secondary;
-    if (s.pageNum) document.getElementById('pageNum').value = s.pageNum;
-    if (s.hasDiagram) document.getElementById('hasDiagram').checked = s.hasDiagram;
-    if (s.rows && s.rows.length) renderRows(s.rows);
-  } catch(e) {}
-  if (localStorage.getItem('dp_theme') === 'light') applyTheme('light');
-}
-
-// ── theme ────────────────────────────────────────────────────────────────────
-function applyTheme(mode) {
-  const btn = document.getElementById('themeBtn');
-  if (mode === 'light') { document.documentElement.classList.add('light'); btn.textContent = '🌙 Dark mode'; }
-  else { document.documentElement.classList.remove('light'); btn.textContent = '☀️ Light mode'; }
-}
-function toggleTheme() {
-  const isLight = document.documentElement.classList.contains('light');
-  const next = isLight ? 'dark' : 'light';
-  applyTheme(next); localStorage.setItem('dp_theme', next);
-}
-
-// ── actions ──────────────────────────────────────────────────────────────────
+// ── Manual entry actions ──────────────────────────────────────────────────────
 function parseAndAdd() {
+  if (!APP.projectId) return;
   const raw = document.getElementById('input').value;
   if (!raw.trim()) return;
   const r = parseReport(raw);
@@ -859,25 +820,23 @@ function parseAndAdd() {
   const secondary = document.getElementById('secondaryInput').value.trim();
   const pageNum = document.getElementById('pageNum').value.trim();
   const hasDiagram = document.getElementById('hasDiagram').checked ? 'Y' : '';
-
-  // remember intersection
   saveIntersection(intersection);
-
-  // notes describe both intersections when a secondary is given
-  const notes = secondary ? `"${intersection}" and "${secondary}"` : '';
-
-  // columns: intersection | "" | date | dow | time | type | weatherRoad | "" | "" | "" | "" | injuries | units | notes | pageNum | coords | hasDiagram
-  const rows = getRows();
-  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords, hasDiagram]);
-  renderRows(rows);
-  saveState();
+  const notes = secondary ? '"' + intersection + '" and "' + secondary + '"' : '';
+  const proj = getActiveProject();
+  if (!proj) return;
+  proj.rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords, hasDiagram]);
+  if (!proj.narrative) proj.narrative = [];
+  proj.narrative.push('');
+  updateProject(proj);
+  renderTableView();
+  saveFormState();
 }
 async function pasteReport() {
-  try { const text = await navigator.clipboard.readText(); if (!text.trim()) return; document.getElementById('input').value = text; saveState(); }
+  try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('input').value = t; saveFormState(); } }
   catch(e) { alert('Clipboard access denied — paste manually.'); }
 }
 async function pasteCoord() {
-  try { const text = await navigator.clipboard.readText(); if (!text.trim()) return; document.getElementById('coordInput').value = text; saveState(); }
+  try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('coordInput').value = t; saveFormState(); } }
   catch(e) { alert('Clipboard access denied — paste manually.'); }
 }
 function clearInput() {
@@ -887,111 +846,79 @@ function clearInput() {
   document.getElementById('secondaryInput').value = '';
   document.getElementById('pageNum').value = '';
   document.getElementById('hasDiagram').checked = false;
-  saveState();
-}
-function clearTable() { renderRows([]); saveState(); }
-function tableToTSV() { return getRows().map(r => r.join('\t')).join('\n'); }
-function copyTSV() { navigator.clipboard.writeText(tableToTSV()); }
-function copyAndClearAll() {
-  const tsv = tableToTSV();
-  if (!tsv) return;
-  navigator.clipboard.writeText(tsv).then(() => {
-    renderRows([]);
-    // clear everything except the page number, which the user wants to keep
-    const keepPage = document.getElementById('pageNum').value;
-    const step = document.getElementById('hasDiagram').checked ? 5 : 4;
-    clearInput();
-    const n = parseInt(keepPage, 10);
-    document.getElementById('pageNum').value = isNaN(n) ? keepPage : String(n + step);
-    saveState();
-  });
+  saveFormState();
 }
 
-// ── page # arrow-adjust mode ─────────────────────────────────────────────────
+// ── Form state ────────────────────────────────────────────────────────────────
+function saveFormState() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      input: document.getElementById('input').value,
+      coordInput: document.getElementById('coordInput').value,
+      intersection: document.getElementById('intersectionInput').value,
+      secondary: document.getElementById('secondaryInput').value,
+      pageNum: document.getElementById('pageNum').value,
+      hasDiagram: document.getElementById('hasDiagram').checked,
+    }));
+  } catch(e) {}
+}
+function loadFormState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    if (s.input) document.getElementById('input').value = s.input;
+    if (s.coordInput) document.getElementById('coordInput').value = s.coordInput;
+    if (s.intersection) document.getElementById('intersectionInput').value = s.intersection;
+    if (s.secondary) document.getElementById('secondaryInput').value = s.secondary;
+    if (s.pageNum) document.getElementById('pageNum').value = s.pageNum;
+    if (s.hasDiagram) document.getElementById('hasDiagram').checked = s.hasDiagram;
+  } catch(e) {}
+}
+
+// ── Arrow adjust ──────────────────────────────────────────────────────────────
 let arrowAdjustActive = false;
 function setArrowAdjust(on) {
   arrowAdjustActive = on;
   document.getElementById('arrowAdjustBtn').classList.toggle('active', on);
 }
-function toggleArrowAdjust(e) {
-  if (e) e.stopPropagation();
-  setArrowAdjust(!arrowAdjustActive);
-}
+function toggleArrowAdjust(e) { if (e) e.stopPropagation(); setArrowAdjust(!arrowAdjustActive); }
 function adjustPage(delta) {
   const el = document.getElementById('pageNum');
   const n = parseInt(el.value, 10);
-  const next = (isNaN(n) ? 0 : n) + delta;
-  el.value = String(next);
-  saveState();
+  el.value = String((isNaN(n) ? 0 : n) + delta);
+  saveFormState();
 }
-// unified keydown — arrow adjust + Ctrl+E unit mode
 document.addEventListener('keydown', function(e) {
-  if (e.ctrlKey && e.key === 'e') { e.preventDefault(); toggleUnitMode(); return; }
-  if (e.ctrlKey && e.shiftKey && e.key === 'Y') { e.preventDefault(); togglePdfMode(); return; }
   if (!arrowAdjustActive) return;
   if (e.key === 'ArrowRight') { e.preventDefault(); adjustPage(1); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); adjustPage(-1); }
 });
 document.addEventListener('mousedown', function(e) {
-  if (arrowAdjustActive && !document.getElementById('arrowAdjustBtn').contains(e.target)) setArrowAdjust(false);
+  const btn = document.getElementById('arrowAdjustBtn');
+  if (arrowAdjustActive && btn && !btn.contains(e.target)) setArrowAdjust(false);
 });
 
-// ── unit mode ─────────────────────────────────────────────────────────────────
-let unitModeActive = false;
-let accumulatedUnits = []; // [{unitNum, dir, overrideDir, action, factors}]
-
+// ── Unit parsing (used by processPdfForProject) ───────────────────────────────
 const UNIT_DIR_MAP = {NORTH:'NB', SOUTH:'SB', EAST:'EB', WEST:'WB'};
 const UNIT_DIR_OPTIONS = ['NB','SB','EB','WB','Inbound','Outbound','N/A',''];
 
-function showUnitToast(msg) {
-  const t = document.getElementById('unitToast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 1800);
-}
-function toggleUnitMode() {
-  unitModeActive = !unitModeActive;
-  document.getElementById('unitModePanel').style.display = unitModeActive ? 'flex' : 'none';
-  showUnitToast(unitModeActive ? 'Unit Mode On' : 'Unit Mode Off');
-  if (!unitModeActive) clearUnitMode();
-}
-function clearUnitMode() {
-  accumulatedUnits = [];
-  document.getElementById('unitCards').innerHTML = '';
-  document.getElementById('notesSuggestBlock').style.display = 'none';
-  document.getElementById('applyUnitBtn').style.display = 'none';
-  if (document.getElementById('suggestedNotesInput')) document.getElementById('suggestedNotesInput').value = '';
-  if (document.getElementById('unitPageInput')) document.getElementById('unitPageInput').value = '';
-}
-
 function parseUnitPage(raw) {
-  // Unit number — the header says "UNIT # TOWED? # OCCUPANTS" and the actual
-  // number appears on a later line like "1 NO 1" or "2 YES - ROBERTS TOWING 1"
   let unitNum = null;
-  // First try: UNIT # followed immediately by a digit (some PDFs paste it inline)
   const um1 = raw.match(/UNIT\s*#\s*(\d+)/i);
   if (um1 && !/TOWED|OCCUP/i.test(raw.slice(um1.index, um1.index + 30))) unitNum = parseInt(um1[1], 10);
-  // Main try: line starting with a single digit followed by YES or NO (the TOWED? column)
   if (!unitNum) {
     const um2 = raw.match(/^\s*(\d)\s+(?:YES|NO)\b/im);
     if (um2) unitNum = parseInt(um2[1], 10);
   }
-
-  // Travel direction: "ON NORTH/SOUTH/EAST/WEST"
   let dir = '';
   const dm = raw.match(/\bON\s+(NORTH|SOUTH|EAST|WEST)\b/i);
   if (dm) dir = UNIT_DIR_MAP[dm[1].toUpperCase()] || '';
   if (!dir) {
-    // Fallback: last word on the clock-position line (e.g. "12 - 12 O'CLOCK MINOR SOUTH")
     const cm = raw.match(/\b\d+\s*-\s*\d+\s+O'CLOCK[^\n]*(NORTH|SOUTH|EAST|WEST)\b/i);
     if (cm) dir = UNIT_DIR_MAP[cm[1].toUpperCase()] || '';
   }
-
   let action = '';
   const am = raw.match(/(\d{2})\s*-\s*(MAKING LEFT TURN|MAKING RIGHT TURN|GOING STRAIGHT AHEAD|BACKING|CHANGING LANES|STOPPED IN TRAFFIC|ENTERING OR EXITING DRIVEWAY|HIT & RUN[^\n]*|UNKNOWN)/i);
   if (am) action = am[2].trim();
-
-  // Human factors — look for all known factor codes
   const KNOWN_FACTORS = [
     {code:'01', label:'Alcohol involvement'},
     {code:'03', label:'Disregard traffic control'},
@@ -1003,166 +930,49 @@ function parseUnitPage(raw) {
   ];
   const factors = [];
   for (const f of KNOWN_FACTORS) {
-    // match the code followed by the label text (catches it in the E section)
-    if (new RegExp(f.code + '\\s*-\\s*' + f.label.replace(/\//g,'\\/?'), 'i').test(raw)) {
-      factors.push(f);
-    }
+    if (new RegExp(f.code + '\\s*-\\s*' + f.label.replace(/\//g,'\\/?'), 'i').test(raw)) factors.push(f);
   }
-  // Also look for the 99 - NONE DETECTED pattern so we can mark it explicitly
   const noneDetected = /99\s*-\s*NONE DETECTED/i.test(raw);
-
-  return {unitNum, dir, overrideDir: dir, action, factors, noneDetected};
+  return { unitNum, dir, overrideDir: dir, action, factors, noneDetected };
 }
 
 function inferNotes(units) {
-  // Sort so lower unit numbers are checked first for fault
   const sorted = [...units].sort((a,b) => a.unitNum - b.unitNum);
   for (const u of sorted) {
     const codes = u.factors.map(f => f.code);
     const a = (u.action || '').toUpperCase();
-    const others = units.filter(x => x.unitNum !== u.unitNum).map(x => `U${x.unitNum}`);
+    const others = units.filter(x => x.unitNum !== u.unitNum).map(x => 'U' + x.unitNum);
     const otherStr = others.join('/') || '?';
     if (codes.includes('03')) {
-      if (a.includes('LEFT TURN')) return `U${u.unitNum} failed to yield to ${otherStr}`;
-      return `U${u.unitNum} ran a red light`;
+      if (a.includes('LEFT TURN')) return 'U' + u.unitNum + ' failed to yield to ' + otherStr;
+      return 'U' + u.unitNum + ' ran a red light';
     }
-    if (codes.includes('13') || a.includes('CHANGING LANES')) return `U${u.unitNum} improper lane change`;
+    if (codes.includes('13') || a.includes('CHANGING LANES')) return 'U' + u.unitNum + ' improper lane change';
     if (codes.includes('08')) {
-      if (a.includes('LEFT TURN')) return `U${u.unitNum} failed to yield to ${otherStr}`;
-      return `U${u.unitNum} failed to yield`;
+      if (a.includes('LEFT TURN')) return 'U' + u.unitNum + ' failed to yield to ' + otherStr;
+      return 'U' + u.unitNum + ' failed to yield';
     }
-    if (a.includes('BACKING')) return `U${u.unitNum} backed into ${otherStr}`;
-    if (a.includes('ENTERING OR EXITING')) return `U${u.unitNum} entered roadway from driveway`;
-    if (codes.includes('18')) return `U${u.unitNum} not under proper control`;
+    if (a.includes('BACKING')) return 'U' + u.unitNum + ' backed into ' + otherStr;
+    if (a.includes('ENTERING OR EXITING')) return 'U' + u.unitNum + ' entered roadway from driveway';
+    if (codes.includes('18')) return 'U' + u.unitNum + ' not under proper control';
   }
   return '';
 }
 
-function renderUnitCards() {
-  const container = document.getElementById('unitCards');
-  container.innerHTML = '';
-  for (const u of accumulatedUnits) {
-    const card = document.createElement('div');
-    card.className = 'unit-card';
-
-    const head = document.createElement('div');
-    head.className = 'unit-card-head';
-    head.textContent = `Unit ${u.unitNum}`;
-    card.appendChild(head);
-
-    const body = document.createElement('div');
-    body.className = 'unit-card-body';
-
-    // Direction row with override select
-    const dirRow = document.createElement('div'); dirRow.className = 'unit-card-row';
-    const dirLbl = document.createElement('span'); dirLbl.className = 'unit-card-lbl'; dirLbl.textContent = 'Direction';
-    const sel = document.createElement('select'); sel.className = 'unit-dir-sel';
-    for (const opt of UNIT_DIR_OPTIONS) {
-      const o = document.createElement('option');
-      o.value = opt; o.textContent = opt || '—';
-      if (opt === u.overrideDir) o.selected = true;
-      sel.appendChild(o);
-    }
-    sel.onchange = () => { u.overrideDir = sel.value; updateNoteSuggestion(); };
-    dirRow.appendChild(dirLbl); dirRow.appendChild(sel); body.appendChild(dirRow);
-
-    // Action
-    const actRow = document.createElement('div'); actRow.className = 'unit-card-row';
-    const actLbl = document.createElement('span'); actLbl.className = 'unit-card-lbl'; actLbl.textContent = 'Action';
-    const actVal = document.createElement('span'); actVal.textContent = u.action || '—';
-    actRow.appendChild(actLbl); actRow.appendChild(actVal); body.appendChild(actRow);
-
-    // Factors
-    const facRow = document.createElement('div'); facRow.className = 'unit-card-row';
-    const facLbl = document.createElement('span'); facLbl.className = 'unit-card-lbl'; facLbl.textContent = 'Factors';
-    const facVal = document.createElement('span');
-    if (u.factors.length) {
-      facVal.className = 'unit-factor-bad';
-      facVal.textContent = u.factors.map(f => f.label).join('; ');
-    } else {
-      facVal.className = 'unit-factor-ok';
-      facVal.textContent = u.noneDetected ? 'None detected' : '—';
-    }
-    facRow.appendChild(facLbl); facRow.appendChild(facVal); body.appendChild(facRow);
-
-    card.appendChild(body);
-    container.appendChild(card);
-  }
-
-  const hasUnits = accumulatedUnits.length > 0;
-  document.getElementById('notesSuggestBlock').style.display = hasUnits ? 'block' : 'none';
-  document.getElementById('applyUnitBtn').style.display = hasUnits ? 'block' : 'none';
-}
-
-function updateNoteSuggestion() {
-  const el = document.getElementById('suggestedNotesInput');
-  const suggested = inferNotes(accumulatedUnits);
-  el.value = suggested;
-}
-
-function handleUnitPaste() {
-  const raw = document.getElementById('unitPageInput').value;
-  if (!raw.trim()) return;
-  const parsed = parseUnitPage(raw);
-  if (!parsed.unitNum) { alert('Could not find a unit number in this page.'); return; }
-  const idx = accumulatedUnits.findIndex(u => u.unitNum === parsed.unitNum);
-  if (idx >= 0) accumulatedUnits[idx] = parsed;
-  else accumulatedUnits.push(parsed);
-  accumulatedUnits.sort((a,b) => a.unitNum - b.unitNum);
-  document.getElementById('unitPageInput').value = '';
-  renderUnitCards();
-  updateNoteSuggestion();
-  showUnitToast(`Unit ${parsed.unitNum} parsed`);
-}
-
-function applyUnitData() {
-  const rows = getRows();
-  if (!rows.length) { alert('No row to update — parse the main report first.'); return; }
-  const lastRow = rows[rows.length - 1];
-  // col indices: 0=intersection,1=gap,2=date,3=dow,4=time,5=type,6=weather,7=u1,8=u2,9=u3,10=u4,11=injuries,12=units,13=notes,14=page,15=gps,16=diagram
-  for (const u of accumulatedUnits) {
-    const col = 6 + u.unitNum; // U1→7, U2→8, U3→9, U4→10
-    if (col >= 7 && col <= 10) lastRow[col] = u.overrideDir;
-  }
-  const notes = document.getElementById('suggestedNotesInput').value.trim();
-  if (notes) lastRow[13] = notes;
-  renderRows(rows);
-  saveState();
-  showUnitToast('Applied!');
-}
-function downloadCSV() {
-  const rows = getRows();
-  const csv = rows.map(r => r.map(c => '"' + c.replace(/"/g,'""') + '"').join(',')).join('\n');
-  const blob = new Blob([csv], {type:'text/csv'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'export.csv'; a.click();
-}
-
-// ── PDF mode ──────────────────────────────────────────────────────────────────
-let pdfModeActive = false;
-function togglePdfMode() {
-  pdfModeActive = !pdfModeActive;
-  document.getElementById('pdfModePanel').style.display = pdfModeActive ? 'block' : 'none';
-}
-
+// ── PDF processing ────────────────────────────────────────────────────────────
 function classifyPage(text) {
-  // Sub-page with a data row "<digit> YES/NO"
   if (/MASTER FILE/i.test(text) && /^\s*\d\s+(YES|NO)\b/im.test(text)) return 'UNIT';
-  // Primary form: the label sits alone on its line (the value wraps to the next line)
   if (/MASTER FILE #\s*$/im.test(text)) return 'MAIN';
-  // Narrative, witness, anything else — ignored
   return 'OTHER';
 }
-
 function extractGps(text) {
-  // grab the first two "DEG: <n>  MIN: <n>" pairs → latitude then longitude
   const pairs = [...text.matchAll(/DEG:\s*(\d+(?:\.\d+)?)\s*MIN:\s*(\d+(?:\.\d+)?)/gi)];
   if (pairs.length >= 2) {
     const [a, b] = pairs;
-    return parseCoordText(`${a[1]}\n${b[1]}\n${a[2]}\n${b[2]}`); // order: latDeg,lonDeg,latMin,lonMin
+    return parseCoordText(a[1] + '\n' + b[1] + '\n' + a[2] + '\n' + b[2]);
   }
   return '';
 }
-
 function reconstructText(items) {
   if (!items.length) return '';
   const BAND = 3;
@@ -1171,41 +981,27 @@ function reconstructText(items) {
     if (Math.abs(ay - by) > BAND) return by - ay;
     return a.transform[4] - b.transform[4];
   });
-  const lines = [];
-  let curY = null, curLine = [];
+  const lines = []; let curY = null, curLine = [];
   for (const item of sorted) {
     const y = item.transform[5];
     if (curY === null || Math.abs(y - curY) > BAND) {
       if (curLine.length) lines.push(curLine.join(' '));
-      curLine = [item.str];
-      curY = y;
-    } else {
-      curLine.push(item.str);
-    }
+      curLine = [item.str]; curY = y;
+    } else { curLine.push(item.str); }
   }
   if (curLine.length) lines.push(curLine.join(' '));
   return lines.join('\n');
 }
 
-async function processPdf() {
-  const file = document.getElementById('pdfFileInput').files[0];
-  if (!file) { alert('Select a PDF file first.'); return; }
-  const status = document.getElementById('pdfStatus');
-  status.textContent = 'Loading PDF…';
-
+async function processPdfForProject(file, statusEl) {
   const url = URL.createObjectURL(file);
   let pdf;
-  try {
-    pdf = await pdfjsLib.getDocument({ url }).promise;
-  } catch(e) {
-    status.textContent = 'Error loading PDF: ' + e.message;
-    URL.revokeObjectURL(url);
-    return;
-  }
+  try { pdf = await pdfjsLib.getDocument({ url }).promise; }
+  catch(e) { statusEl.textContent = 'Error loading PDF: ' + e.message; URL.revokeObjectURL(url); return null; }
 
   const pages = [];
   for (let i = 1; i <= pdf.numPages; i++) {
-    status.textContent = `Extracting page ${i} of ${pdf.numPages}…`;
+    statusEl.textContent = 'Extracting page ' + i + ' of ' + pdf.numPages + '…';
     const page = await pdf.getPage(i);
     const tc = await page.getTextContent();
     const text = reconstructText(tc.items);
@@ -1214,111 +1010,22 @@ async function processPdf() {
   }
   URL.revokeObjectURL(url);
 
-  const reports = [];
-  let cur = null;
+  const reports = []; let cur = null;
   for (const p of pages) {
     if (p.type === 'MAIN') {
       if (cur) reports.push(cur);
-      cur = { mainPage: p, unitPages: [] };
+      cur = { mainPage: p, unitPages: [], narrativePages: [] };
     } else if (cur && p.type === 'UNIT') {
       cur.unitPages.push(p);
+    } else if (cur && p.type === 'OTHER' && /MASTER FILE/i.test(p.text)) {
+      cur.narrativePages.push(p);
     }
-    // OTHER pages (narrative/witness) are ignored
   }
   if (cur) reports.push(cur);
+  if (!reports.length) { statusEl.textContent = 'No entries found in this PDF.'; return null; }
 
-  if (!reports.length) { status.textContent = 'No entries found in this PDF.'; return; }
-
-  const newRows = [];
+  const rows = [], narrative = [];
   for (const rep of reports) {
-    const r = parseReport(rep.mainPage.text);
-    const annotVals = rep.mainPage.annotations
-      .filter(a => a.subtype === 'Widget' && a.fieldValue)
-      .map(a => String(a.fieldValue))
-      .join('\n');
-    let coords = parseCoordText(annotVals);
-    if (!coords) coords = extractGps(rep.mainPage.text);
-    const parsedUnits = rep.unitPages.map(p => parseUnitPage(p.text)).filter(u => u.unitNum);
-    const notes = inferNotes(parsedUnits);
-    const u = n => (parsedUnits.find(x => x.unitNum === n) || {}).overrideDir || '';
-    newRows.push([
-      '', '', r.date, r.day, r.time, r.type, r.weatherRoad,
-      u(1), u(2), u(3), u(4),
-      r.injuries, r.units, notes,
-      String(rep.mainPage.pdfPageNum), coords,
-      ''
-    ]);
-  }
-
-  const existing = getRows();
-  const startIdx = existing.length;
-  renderRows([...existing, ...newRows]);
-  saveState();
-
-  // mark new rows as draft
-  const trs = document.getElementById('tbody').querySelectorAll('tr');
-  for (let i = startIdx; i < trs.length; i++) trs[i].classList.add('draft-row');
-
-  // click a draft row to confirm it
-  document.getElementById('tbody').addEventListener('click', function handler(e) {
-    const tr = e.target.closest('tr.draft-row');
-    if (tr) tr.classList.remove('draft-row');
-  }, { once: false });
-
-  status.textContent = `Done — ${newRows.length} draft row${newRows.length !== 1 ? 's' : ''} added. Click a row to mark it verified.`;
-}
-
-async function diagnosePdf() {
-  const file = document.getElementById('pdfFileInput').files[0];
-  if (!file) { alert('Select a PDF file first.'); return; }
-  const status = document.getElementById('pdfStatus');
-  status.textContent = 'Running diagnostics…';
-
-  const url = URL.createObjectURL(file);
-  let pdf;
-  try { pdf = await pdfjsLib.getDocument({ url }).promise; }
-  catch(e) { status.textContent = 'Error: ' + e.message; URL.revokeObjectURL(url); return; }
-
-  const lines = [`=== PDF DIAGNOSTIC ===`, `File: ${file.name}`, `Pages: ${pdf.numPages}`, ``];
-  const pages = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    status.textContent = `Diagnosing page ${i} of ${pdf.numPages}…`;
-    const page = await pdf.getPage(i);
-    const tc = await page.getTextContent();
-    const text = reconstructText(tc.items);
-    const annotations = await page.getAnnotations();
-    const type = classifyPage(text);
-    pages.push({ pdfPageNum: i, text, annotations, type });
-    const preview = text.split('\n').slice(0, 5).map(l => '  | ' + l).join('\n');
-    const widgets = annotations.filter(a => a.subtype === 'Widget' && a.fieldValue);
-    lines.push(`--- Page ${i} → ${type} ---`);
-    lines.push(`Text items: ${tc.items.length}  |  Widget annotations: ${widgets.length}`);
-    lines.push(`First 5 lines of reconstructed text:`);
-    lines.push(preview || '  (empty)');
-    if (widgets.length) {
-      lines.push(`Widget values: ${widgets.map(w => JSON.stringify(w.fieldValue)).join(', ')}`);
-    }
-    lines.push('');
-  }
-  URL.revokeObjectURL(url);
-
-  // group into reports
-  const reports = [];
-  let cur = null;
-  for (const p of pages) {
-    if (p.type === 'MAIN') {
-      if (cur) reports.push(cur);
-      cur = { mainPage: p, unitPages: [] };
-    } else if (cur && p.type === 'UNIT') {
-      cur.unitPages.push(p);
-    }
-    // OTHER pages (narrative/witness) are ignored
-  }
-  if (cur) reports.push(cur);
-
-  lines.push(`=== PARSED RESULTS (${reports.length} entries found) ===`, '');
-  for (let ri = 0; ri < reports.length; ri++) {
-    const rep = reports[ri];
     const r = parseReport(rep.mainPage.text);
     const annotVals = rep.mainPage.annotations
       .filter(a => a.subtype === 'Widget' && a.fieldValue)
@@ -1327,34 +1034,36 @@ async function diagnosePdf() {
     if (!coords) coords = extractGps(rep.mainPage.text);
     const parsedUnits = rep.unitPages.map(p => parseUnitPage(p.text)).filter(u => u.unitNum);
     const notes = inferNotes(parsedUnits);
-    lines.push(`Entry ${ri + 1}  (main page ${rep.mainPage.pdfPageNum}, ${rep.unitPages.length} unit page(s))`);
-    lines.push(`  date=${r.date||'?'}  dow=${r.day||'?'}  time=${r.time||'?'}`);
-    lines.push(`  type=${r.type||'?'}  weather/road=${r.weatherRoad||'?'}`);
-    lines.push(`  injuries=${r.injuries||'?'}  units=${r.units||'?'}`);
-    lines.push(`  GPS=${coords||'(not found)'}`);
-    for (const u of parsedUnits) {
-      lines.push(`  Unit ${u.unitNum}: dir=${u.overrideDir||'?'}  action=${u.action||'?'}  factors=[${u.factors.map(f=>f.code).join(',')||'none'}]`);
-    }
-    lines.push(`  notes="${notes}"`);
-    lines.push('');
+    const u = n => (parsedUnits.find(x => x.unitNum === n) || {}).overrideDir || '';
+    rows.push(['', '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords, '']);
+    narrative.push(rep.narrativePages.map(p => p.text).join('\n\n'));
   }
-
-  const out = lines.join('\n');
-  document.getElementById('pdfDiagOutput').value = out;
-  document.getElementById('pdfDiagBlock').style.display = 'flex';
-  status.textContent = `Diagnostic complete — ${reports.length} entries detected. Copy the output below.`;
+  statusEl.textContent = 'Done — ' + rows.length + ' entr' + (rows.length !== 1 ? 'ies' : 'y') + ' found.';
+  return { rows, narrative };
 }
 
-function copyDiag() {
-  const el = document.getElementById('pdfDiagOutput');
-  navigator.clipboard.writeText(el.value).catch(() => { el.select(); document.execCommand('copy'); });
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function applyTheme(mode) {
+  const btn = document.getElementById('themeBtn');
+  if (mode === 'light') { document.documentElement.classList.add('light'); btn.textContent = '🌙 Dark mode'; }
+  else { document.documentElement.classList.remove('light'); btn.textContent = '☀️ Light mode'; }
+}
+function toggleTheme() {
+  const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+  applyTheme(next); localStorage.setItem('dp_theme', next);
 }
 
-document.getElementById('input').addEventListener('input', saveState);
-document.getElementById('coordInput').addEventListener('input', saveState);
-document.getElementById('pageNum').addEventListener('input', saveState);
-document.getElementById('hasDiagram').addEventListener('change', saveState);
-window.addEventListener('load', loadState);
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', function() {
+  if (localStorage.getItem('dp_theme') === 'light') applyTheme('light');
+  loadFormState();
+  showScreen('menu');
+});
+
+document.getElementById('input').addEventListener('input', saveFormState);
+document.getElementById('coordInput').addEventListener('input', saveFormState);
+document.getElementById('pageNum').addEventListener('input', saveFormState);
+document.getElementById('hasDiagram').addEventListener('change', saveFormState);
 </script>
 </body>
 </html>
