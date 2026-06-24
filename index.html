@@ -33,7 +33,6 @@
     padding: 24px;
     line-height: 1.5;
   }
-  /* header */
   .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
   .header h1 { font-size: 20px; font-weight: 700; }
   .how-to-btn {
@@ -47,7 +46,6 @@
     cursor: pointer;
   }
   .how-to-btn:hover { color: var(--text); background: var(--border); }
-  /* inputs stack */
   .input-stack { display: flex; flex-direction: column; gap: 12px; }
   .input-block { display: flex; flex-direction: column; gap: 6px; }
   .input-label {
@@ -88,11 +86,81 @@
   textarea:focus { border-color: var(--accent2); }
   #input { min-height: 180px; }
   #coordInput { min-height: 100px; }
-  /* inline fields row */
+
+  /* intersection combobox */
+  .combo-wrap { position: relative; }
+  .combo-wrap textarea {
+    min-height: unset;
+    height: 42px;
+    resize: none;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 10px 36px 10px 12px;
+    line-height: 1.4;
+    overflow: hidden;
+  }
+  .combo-wrap textarea:focus { border-color: var(--accent2); }
+  .combo-arrow {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px;
+    line-height: 1;
+  }
+  .combo-arrow:hover { color: var(--text); }
+  .combo-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    z-index: 200;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  }
+  .combo-dropdown.open { display: block; }
+  .combo-option {
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .combo-option:hover { background: var(--panel2); }
+  .combo-option-del {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .combo-option-del:hover { color: #e05c5c; }
+  .combo-empty {
+    padding: 10px 12px;
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+  }
+
   .fields-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
   .field-block { display: flex; flex-direction: column; gap: 6px; }
   .field-block .input-label { justify-content: flex-start; }
-  .field-block input[type=text], .field-block select {
+  .field-block input[type=text] {
     background: var(--panel);
     color: var(--text);
     border: 1px solid var(--border);
@@ -102,23 +170,10 @@
     font-family: inherit;
     outline: none;
     transition: border-color .15s;
+    width: 110px;
   }
-  .field-block input[type=text]:focus, .field-block select:focus { border-color: var(--accent2); }
-  .field-block input[type=text] { width: 110px; }
-  .field-block select { width: 120px; }
-  .check-block { display: flex; flex-direction: column; gap: 6px; }
-  .check-block .input-label { justify-content: flex-start; }
-  .check-inner {
-    display: flex; align-items: center; gap: 8px;
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 7px; padding: 8px 11px;
-    cursor: pointer; user-select: none;
-  }
-  .check-inner input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent2); cursor: pointer; }
-  .check-inner span { font-size: 13px; }
-  /* divider */
+  .field-block input[type=text]:focus { border-color: var(--accent2); }
   .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
-  /* primary action */
   .btn-primary {
     width: 100%;
     background: var(--accent2);
@@ -132,7 +187,6 @@
     transition: background .15s;
   }
   .btn-primary:hover { background: var(--accent); }
-  /* output */
   .output-section { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
   .panel {
     background: var(--panel);
@@ -184,7 +238,6 @@
     cursor: pointer;
   }
   .row-copy:hover { background: var(--border); color: var(--text); }
-  /* modal */
   .modal-backdrop {
     display: none;
     position: fixed; inset: 0;
@@ -212,7 +265,6 @@
     font-size: 20px; cursor: pointer; line-height: 1;
   }
   .modal-close:hover { color: var(--text); }
-  /* theme toggle */
   .theme-toggle {
     position: fixed;
     bottom: 18px;
@@ -259,26 +311,19 @@
       <textarea id="coordInput" placeholder="Paste DEG/MIN block here..."></textarea>
     </div>
 
+    <div class="input-block">
+      <div class="input-label"><span>Intersection</span></div>
+      <div class="combo-wrap" id="comboWrap">
+        <textarea id="intersectionInput" placeholder="Type intersection name..." rows="1" autocomplete="off" oninput="onComboInput()" onkeydown="onComboKey(event)"></textarea>
+        <button class="combo-arrow" type="button" onclick="toggleComboDropdown()" tabindex="-1">▾</button>
+        <div class="combo-dropdown" id="comboDropdown"></div>
+      </div>
+    </div>
+
     <div class="fields-row">
       <div class="field-block">
         <div class="input-label">Page #</div>
         <input type="text" id="pageNum" placeholder="e.g. 257">
-      </div>
-      <div class="check-block">
-        <div class="input-label">Has Diagram?</div>
-        <label class="check-inner">
-          <input type="checkbox" id="hasDiagram">
-          <span>Yes</span>
-        </label>
-      </div>
-      <div class="field-block">
-        <div class="input-label">Is Intersection?</div>
-        <select id="isIntersection">
-          <option value="">N/A</option>
-          <option value="Y">Y</option>
-          <option value="N">N</option>
-          <option value="?">?</option>
-        </select>
       </div>
     </div>
 
@@ -292,22 +337,27 @@
       <table id="outTable">
         <thead>
           <tr>
-            <th>Page #</th>
-            <th>Diagram?</th>
-            <th>Coordinates</th>
-            <th>Intersection?</th>
+            <th>Intersection</th>
+            <th></th>
             <th>Date</th>
-            <th>Day</th>
+            <th>DOW</th>
             <th>Time</th>
             <th>Collision Type</th>
             <th>Weather/Road</th>
+            <th>Unit 1</th>
+            <th>Unit 2</th>
+            <th>Unit 3</th>
+            <th>Unit 4</th>
             <th>Injuries</th>
-            <th>Units</th>
+            <th># Units</th>
+            <th>Notes</th>
+            <th>PDF Page</th>
+            <th>GPS</th>
             <th class="copy-col"></th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td class="empty" colspan="12">No rows yet — fill in the fields above and click Parse.</td></tr>
+          <tr><td class="empty" colspan="17">No rows yet — fill in the fields above and click Parse.</td></tr>
         </tbody>
       </table>
     </div>
@@ -327,230 +377,293 @@
     <h2>How to use</h2>
     <ol>
       <li>
-        <strong>Report Text</strong> — in the PDF, highlight from <em>"Kentucky Uniform Police Traffic Collision Report"</em> down to <em>"School Bus Related &nbsp; 03 – Not Applicable"</em>, then paste into the Report Text box.
+        <strong>Report Text</strong> — highlight from <em>"Kentucky Uniform Police Traffic Collision Report"</em> down to <em>"School Bus Related &nbsp; 03 – Not Applicable"</em>, then paste into the Report Text box.
       </li>
       <li>
         <strong>Coordinates</strong> — highlight from the first <em>"DEG:"</em> label down through the last digit of the bottom <em>"MIN"</em> value, then paste into the Coordinates box.
       </li>
       <li>
+        <strong>Intersection</strong> — type the intersection name or pick a previously used one from the dropdown.
+      </li>
+      <li>
         <strong>Page #</strong> — type the page number for this report.
       </li>
       <li>
-        <strong>Is Intersection?</strong> — choose Y, N, ?, or N/A from the dropdown.
+        Click <strong>Parse Input</strong> — a row appears in the output table. Unit 1–4 and Notes columns are left blank for manual entry after pasting.
       </li>
       <li>
-        <strong>Has Diagram?</strong> — check the box if the report includes a diagram.
-      </li>
-      <li>
-        Click <strong>Parse Input</strong> — a row appears in the output table below.
-      </li>
-      <li>
-        Click <strong>Copy &amp; Clear</strong> — the row is copied to your clipboard as tab-separated values, ready to paste into Excel. The form and table clear for the next report.
+        Click <strong>Copy &amp; Clear</strong> — copies all rows as tab-separated values (ready to paste into Excel) and clears the form and table.
       </li>
     </ol>
   </div>
 </div>
 
-<!-- Theme toggle -->
 <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">☀️ Light mode</button>
 
 <script>
-const LS_KEY = 'dp_state_v2';
+const LS_KEY = 'dp_state_v3';
+const LS_INTERSECTIONS = 'dp_intersections_v1';
 
-function starred(text){
-  const out=[]; const re=/\*([^*]+)\*/g; let m;
-  while((m=re.exec(text))!==null) out.push(m[1].trim());
+// ── intersection combobox ────────────────────────────────────────────────────
+function getSavedIntersections() {
+  try { return JSON.parse(localStorage.getItem(LS_INTERSECTIONS) || '[]'); } catch(e) { return []; }
+}
+function saveIntersection(val) {
+  val = val.trim();
+  if (!val) return;
+  const list = getSavedIntersections().filter(s => s !== val);
+  list.unshift(val);
+  try { localStorage.setItem(LS_INTERSECTIONS, JSON.stringify(list.slice(0, 100))); } catch(e) {}
+}
+function deleteIntersection(val) {
+  const list = getSavedIntersections().filter(s => s !== val);
+  try { localStorage.setItem(LS_INTERSECTIONS, JSON.stringify(list)); } catch(e) {}
+  renderComboDropdown();
+}
+
+function renderComboDropdown(filter) {
+  const dd = document.getElementById('comboDropdown');
+  let list = getSavedIntersections();
+  if (filter) list = list.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
+  dd.innerHTML = '';
+  if (!list.length) {
+    dd.innerHTML = '<div class="combo-empty">No saved intersections</div>';
+    return;
+  }
+  for (const item of list) {
+    const div = document.createElement('div');
+    div.className = 'combo-option';
+    const span = document.createElement('span');
+    span.textContent = item;
+    span.style.flex = '1';
+    span.onclick = () => { selectComboItem(item); };
+    const del = document.createElement('button');
+    del.className = 'combo-option-del';
+    del.textContent = '×';
+    del.title = 'Remove';
+    del.onclick = (e) => { e.stopPropagation(); deleteIntersection(item); };
+    div.appendChild(span);
+    div.appendChild(del);
+    dd.appendChild(div);
+  }
+}
+
+function openComboDropdown() {
+  const dd = document.getElementById('comboDropdown');
+  const filter = document.getElementById('intersectionInput').value.trim();
+  renderComboDropdown(filter || undefined);
+  dd.classList.add('open');
+}
+function closeComboDropdown() {
+  document.getElementById('comboDropdown').classList.remove('open');
+}
+function toggleComboDropdown() {
+  const dd = document.getElementById('comboDropdown');
+  if (dd.classList.contains('open')) { closeComboDropdown(); }
+  else { document.getElementById('intersectionInput').focus(); openComboDropdown(); }
+}
+function selectComboItem(val) {
+  document.getElementById('intersectionInput').value = val;
+  closeComboDropdown();
+  saveState();
+}
+function onComboInput() {
+  openComboDropdown();
+  saveState();
+}
+function onComboKey(e) {
+  if (e.key === 'Escape') closeComboDropdown();
+  if (e.key === 'Enter') { e.preventDefault(); closeComboDropdown(); }
+}
+
+// close dropdown when clicking outside
+document.addEventListener('mousedown', function(e) {
+  if (!document.getElementById('comboWrap').contains(e.target)) closeComboDropdown();
+});
+
+// ── parsing ──────────────────────────────────────────────────────────────────
+function starred(text) {
+  const out = []; const re = /\*([^*]+)\*/g; let m;
+  while ((m = re.exec(text)) !== null) out.push(m[1].trim());
   return out;
 }
-function stripCode(s){return s.replace(/^\s*\d{1,3}\s*-\s*/,'').trim();}
-function tidyType(s){s=stripCode(s).toLowerCase();return s?s[0].toUpperCase()+s.slice(1):'';}
-function tidyWord(s){s=stripCode(s).toLowerCase().trim();return s?s[0].toUpperCase()+s.slice(1):'';}
-function dayOfWeek(ds){
-  const p=ds.split('/');if(p.length!==3)return'';
-  const mo=parseInt(p[0],10),da=parseInt(p[1],10),yr=parseInt(p[2],10);
-  if(!mo||!da||!yr)return'';
-  const d=new Date(yr,mo-1,da);if(isNaN(d))return'';
-  return['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+function stripCode(s) { return s.replace(/^\s*\d{1,3}\s*-\s*/, '').trim(); }
+function tidyType(s) { s = stripCode(s).toLowerCase(); return s ? s[0].toUpperCase() + s.slice(1) : ''; }
+function tidyWord(s) { s = stripCode(s).toLowerCase().trim(); return s ? s[0].toUpperCase() + s.slice(1) : ''; }
+function dayOfWeek(ds) {
+  const p = ds.split('/'); if (p.length !== 3) return '';
+  const mo = parseInt(p[0], 10), da = parseInt(p[1], 10), yr = parseInt(p[2], 10);
+  if (!mo || !da || !yr) return '';
+  const d = new Date(yr, mo - 1, da); if (isNaN(d)) return '';
+  return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
 }
-function normDate(ds){
-  const p=ds.split('/');if(p.length!==3)return ds;
-  return`${parseInt(p[0],10)}/${parseInt(p[1],10)}/${p[2]}`;
+function normDate(ds) {
+  const p = ds.split('/'); if (p.length !== 3) return ds;
+  return `${parseInt(p[0],10)}/${parseInt(p[1],10)}/${p[2]}`;
 }
-function parseCoordText(raw){
-  const nums=raw.split('\n').map(l=>l.trim()).filter(l=>/^-?\d+(\.\d+)?$/.test(l)).map(Number);
-  if(nums.length<4)return'';
-  const[latDeg,lonDeg,latMin,lonMin]=nums;
-  const pad=n=>{const[w,f]=n.toString().split('.');return w.padStart(2,'0')+(f?'.'+f:'');};
-  return`${latDeg} ${pad(latMin)}, -${lonDeg} ${pad(lonMin)}`;
+function parseCoordText(raw) {
+  const nums = raw.split('\n').map(l => l.trim()).filter(l => /^-?\d+(\.\d+)?$/.test(l)).map(Number);
+  if (nums.length < 4) return '';
+  const [latDeg, lonDeg, latMin, lonMin] = nums;
+  const pad = n => { const [w, f] = n.toString().split('.'); return w.padStart(2,'0') + (f ? '.' + f : ''); };
+  return `${latDeg} ${pad(latMin)}, -${lonDeg} ${pad(lonMin)}`;
 }
-function parseReport(raw){
-  const stars=starred(raw);
-  const text=raw.replace(/\*/g,' ');
-  const lines=text.split('\n').map(l=>l.trim());
-  const r={date:'',day:'',time:'',type:'',weatherRoad:'',injuries:'',units:''};
-  const dateRe=/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/,timeRe=/\b(\d{1,2}:\d{2})\b/;
-  for(const l of lines){if(!r.date){const dm=l.match(dateRe);if(dm)r.date=dm[1];}}
-  for(const l of lines){if(!r.time){const tm=l.match(timeRe);if(tm)r.time=tm[1];}}
-  if(r.date){r.day=dayOfWeek(r.date);r.date=normDate(r.date);}
-  const dl=lines.find(l=>/\d+\.\d{3}/.test(l)&&/MPH/i.test(l));
-  if(dl){const cl=dl.replace(/\d+\.\d{3}/,' ').replace(/[()]/g,' ');const ints=cl.match(/\b\d+\b/g)||[];if(ints.length>=3){r.injuries=ints[0];r.units=ints[2];}}
-  const sn=stars.find(s=>/^\d+$/.test(s.trim()));if(sn)r.injuries=sn.trim();
-  const typeKw=/(REAR|SIDESWIPE|ANGLE|HEAD ON|HEAD-ON|REAR END|REAR-END|SINGLE VEHICLE|OPPOSING|TURN|BACKING)/i;
-  const ts=stars.find(s=>typeKw.test(s));
-  if(ts){r.type=tidyType(ts);}else{
-    const tl=lines.find(l=>/^\d{1,3}\s*-\s*/.test(l)&&typeKw.test(l));
-    if(tl){const m=tl.match(/^\d{1,3}\s*-\s*([A-Za-z][A-Za-z \-]+)/);if(m)r.type=tidyType(m[1]);}
+function parseReport(raw) {
+  const stars = starred(raw);
+  const text = raw.replace(/\*/g, ' ');
+  const lines = text.split('\n').map(l => l.trim());
+  const r = { date:'', day:'', time:'', type:'', weatherRoad:'', injuries:'', units:'' };
+  const dateRe = /\b(\d{1,2}\/\d{1,2}\/\d{4})\b/, timeRe = /\b(\d{1,2}:\d{2})\b/;
+  for (const l of lines) { if (!r.date) { const dm = l.match(dateRe); if (dm) r.date = dm[1]; } }
+  for (const l of lines) { if (!r.time) { const tm = l.match(timeRe); if (tm) r.time = tm[1]; } }
+  if (r.date) { r.day = dayOfWeek(r.date); r.date = normDate(r.date); }
+  const dl = lines.find(l => /\d+\.\d{3}/.test(l) && /MPH/i.test(l));
+  if (dl) { const cl = dl.replace(/\d+\.\d{3}/,' ').replace(/[()]/g,' '); const ints = cl.match(/\b\d+\b/g)||[]; if (ints.length >= 3) { r.injuries = ints[0]; r.units = ints[2]; } }
+  const sn = stars.find(s => /^\d+$/.test(s.trim())); if (sn) r.injuries = sn.trim();
+  const typeKw = /(REAR|SIDESWIPE|ANGLE|HEAD ON|HEAD-ON|REAR END|REAR-END|SINGLE VEHICLE|OPPOSING|TURN|BACKING)/i;
+  const ts = stars.find(s => typeKw.test(s));
+  if (ts) { r.type = tidyType(ts); } else {
+    const tl = lines.find(l => /^\d{1,3}\s*-\s*/.test(l) && typeKw.test(l));
+    if (tl) { const m = tl.match(/^\d{1,3}\s*-\s*([A-Za-z][A-Za-z \-]+)/); if (m) r.type = tidyType(m[1]); }
   }
-  const cw=/(DRY|WET|ICE|ICY|SNOW|SLUSH|MUDDY|OIL|WATER|STANDING)/i;
-  const ww=/(CLEAR|CLOUDY|RAIN|SNOW|FOG|SLEET|HAIL|WIND|SMOKE|SEVERE)/i;
-  let road='',weather='';
-  const ri=lines.findIndex(l=>cw.test(l)&&/-/.test(l)&&/(ASPHALT|CONCRETE|GRAVEL|DRY|WET)/i.test(l));
-  if(ri!==-1){
-    const chunks=lines[ri].split(/\s{2,}|(?=\d{1,3}\s*-)/).map(s=>s.trim()).filter(Boolean);
-    for(const c of chunks){if(cw.test(c))road=tidyWord(c.match(cw)[0]);}
-    if(!road){const rm=lines[ri].match(cw);if(rm)road=tidyWord(rm[0]);}
+  const cw = /(DRY|WET|ICE|ICY|SNOW|SLUSH|MUDDY|OIL|WATER|STANDING)/i;
+  const ww = /(CLEAR|CLOUDY|RAIN|SNOW|FOG|SLEET|HAIL|WIND|SMOKE|SEVERE)/i;
+  let road = '', weather = '';
+  const ri = lines.findIndex(l => cw.test(l) && /-/.test(l) && /(ASPHALT|CONCRETE|GRAVEL|DRY|WET)/i.test(l));
+  if (ri !== -1) {
+    const chunks = lines[ri].split(/\s{2,}|(?=\d{1,3}\s*-)/).map(s => s.trim()).filter(Boolean);
+    for (const c of chunks) { if (cw.test(c)) road = tidyWord(c.match(cw)[0]); }
+    if (!road) { const rm = lines[ri].match(cw); if (rm) road = tidyWord(rm[0]); }
   }
-  const wl=lines.find(l=>ww.test(l)&&/\d{1,3}\s*-/.test(l));
-  if(wl){const wm=wl.match(ww);if(wm)weather=tidyWord(wm[0]);}
-  const sw=stars.find(s=>ww.test(s));const sr=stars.find(s=>cw.test(s));
-  if(sw)weather=tidyWord(sw.match(ww)[0]);
-  if(sr)road=tidyWord(sr.match(cw)[0]);
-  if(weather||road)r.weatherRoad=[weather,road].filter(Boolean).join('/');
+  const wl = lines.find(l => ww.test(l) && /\d{1,3}\s*-/.test(l));
+  if (wl) { const wm = wl.match(ww); if (wm) weather = tidyWord(wm[0]); }
+  const sw = stars.find(s => ww.test(s)); const sr = stars.find(s => cw.test(s));
+  if (sw) weather = tidyWord(sw.match(ww)[0]);
+  if (sr) road = tidyWord(sr.match(cw)[0]);
+  if (weather || road) r.weatherRoad = [weather, road].filter(Boolean).join('/');
   return r;
 }
 
-function getRows(){
-  return[...document.querySelectorAll('#outTable tbody tr')]
-    .filter(r=>!r.querySelector('.empty'))
-    .map(r=>[...r.querySelectorAll('td:not(.copy-cell)')].map(c=>c.textContent));
+// ── table ────────────────────────────────────────────────────────────────────
+const COL_COUNT = 16; // data columns (excluding copy-cell)
+
+function getRows() {
+  return [...document.querySelectorAll('#outTable tbody tr')]
+    .filter(r => !r.querySelector('.empty'))
+    .map(r => [...r.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent));
 }
-function renderRows(rows){
-  const tbody=document.getElementById('tbody');
-  tbody.innerHTML='';
-  if(!rows.length){
-    tbody.innerHTML='<tr><td class="empty" colspan="12">No rows yet — fill in the fields above and click Parse.</td></tr>';
+function renderRows(rows) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td class="empty" colspan="${COL_COUNT + 1}">No rows yet — fill in the fields above and click Parse.</td></tr>`;
     return;
   }
-  for(const row of rows){
-    const tr=document.createElement('tr');
-    row.forEach(v=>{const td=document.createElement('td');td.textContent=v||'';tr.appendChild(td);});
-    const copyTd=document.createElement('td');copyTd.className='copy-cell';
-    const btn=document.createElement('button');btn.className='row-copy';btn.textContent='Copy';
-    btn.onclick=()=>copyRow(btn);copyTd.appendChild(btn);tr.appendChild(copyTd);
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    row.forEach(v => { const td = document.createElement('td'); td.textContent = v || ''; tr.appendChild(td); });
+    const copyTd = document.createElement('td'); copyTd.className = 'copy-cell';
+    const btn = document.createElement('button'); btn.className = 'row-copy'; btn.textContent = 'Copy';
+    btn.onclick = () => copyRow(btn); copyTd.appendChild(btn); tr.appendChild(copyTd);
     tbody.appendChild(tr);
   }
 }
-function copyRow(btn){
-  const tr=btn.closest('tr');
-  const vals=[...tr.querySelectorAll('td:not(.copy-cell)')].map(c=>c.textContent);
+function copyRow(btn) {
+  const tr = btn.closest('tr');
+  const vals = [...tr.querySelectorAll('td:not(.copy-cell)')].map(c => c.textContent);
   navigator.clipboard.writeText(vals.join('\t'));
-  const orig=btn.textContent;btn.textContent='Copied!';
-  setTimeout(()=>btn.textContent=orig,1200);
+  const orig = btn.textContent; btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = orig, 1200);
 }
-function saveState(){
-  try{
-    localStorage.setItem(LS_KEY,JSON.stringify({
-      input:document.getElementById('input').value,
-      coordInput:document.getElementById('coordInput').value,
-      pageNum:document.getElementById('pageNum').value,
-      hasDiagram:document.getElementById('hasDiagram').checked,
-      isIntersection:document.getElementById('isIntersection').value,
-      rows:getRows()
+
+// ── state ────────────────────────────────────────────────────────────────────
+function saveState() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      input: document.getElementById('input').value,
+      coordInput: document.getElementById('coordInput').value,
+      intersection: document.getElementById('intersectionInput').value,
+      pageNum: document.getElementById('pageNum').value,
+      rows: getRows()
     }));
-  }catch(e){}
+  } catch(e) {}
 }
-function loadState(){
-  try{
-    const s=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-    if(s.input)document.getElementById('input').value=s.input;
-    if(s.coordInput)document.getElementById('coordInput').value=s.coordInput;
-    if(s.pageNum)document.getElementById('pageNum').value=s.pageNum;
-    if(s.hasDiagram)document.getElementById('hasDiagram').checked=s.hasDiagram;
-    if(s.isIntersection)document.getElementById('isIntersection').value=s.isIntersection;
-    if(s.rows&&s.rows.length)renderRows(s.rows);
-  }catch(e){}
-  // restore saved theme
-  if(localStorage.getItem('dp_theme')==='light') applyTheme('light');
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    if (s.input) document.getElementById('input').value = s.input;
+    if (s.coordInput) document.getElementById('coordInput').value = s.coordInput;
+    if (s.intersection) document.getElementById('intersectionInput').value = s.intersection;
+    if (s.pageNum) document.getElementById('pageNum').value = s.pageNum;
+    if (s.rows && s.rows.length) renderRows(s.rows);
+  } catch(e) {}
+  if (localStorage.getItem('dp_theme') === 'light') applyTheme('light');
 }
 
-function applyTheme(mode){
-  const btn=document.getElementById('themeBtn');
-  if(mode==='light'){
-    document.documentElement.classList.add('light');
-    btn.textContent='🌙 Dark mode';
-  } else {
-    document.documentElement.classList.remove('light');
-    btn.textContent='☀️ Light mode';
-  }
+// ── theme ────────────────────────────────────────────────────────────────────
+function applyTheme(mode) {
+  const btn = document.getElementById('themeBtn');
+  if (mode === 'light') { document.documentElement.classList.add('light'); btn.textContent = '🌙 Dark mode'; }
+  else { document.documentElement.classList.remove('light'); btn.textContent = '☀️ Light mode'; }
 }
-function toggleTheme(){
-  const isLight=document.documentElement.classList.contains('light');
-  const next=isLight?'dark':'light';
-  applyTheme(next);
-  localStorage.setItem('dp_theme',next);
+function toggleTheme() {
+  const isLight = document.documentElement.classList.contains('light');
+  const next = isLight ? 'dark' : 'light';
+  applyTheme(next); localStorage.setItem('dp_theme', next);
 }
 
-function parseAndAdd(){
-  const raw=document.getElementById('input').value;
-  if(!raw.trim())return;
-  const r=parseReport(raw);
-  const coords=parseCoordText(document.getElementById('coordInput').value);
-  const pageNum=document.getElementById('pageNum').value.trim();
-  const hasDiagram=document.getElementById('hasDiagram').checked?'Y':'';
-  const isInt=document.getElementById('isIntersection').value;
-  const rows=getRows();
-  rows.push([pageNum,hasDiagram,coords,isInt,r.date,r.day,r.time,r.type,r.weatherRoad,r.injuries,r.units]);
+// ── actions ──────────────────────────────────────────────────────────────────
+function parseAndAdd() {
+  const raw = document.getElementById('input').value;
+  if (!raw.trim()) return;
+  const r = parseReport(raw);
+  const coords = parseCoordText(document.getElementById('coordInput').value);
+  const intersection = document.getElementById('intersectionInput').value.trim();
+  const pageNum = document.getElementById('pageNum').value.trim();
+
+  // remember intersection
+  saveIntersection(intersection);
+
+  // columns: intersection | "" | date | dow | time | type | weatherRoad | "" | "" | "" | "" | injuries | units | "" | pageNum | coords
+  const rows = getRows();
+  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, '', pageNum, coords]);
   renderRows(rows);
   saveState();
 }
-async function pasteReport(){
-  try{
-    const text=await navigator.clipboard.readText();
-    if(!text.trim())return;
-    document.getElementById('input').value=text;
-    saveState();
-  }catch(e){alert('Clipboard access denied — paste manually.');}
+async function pasteReport() {
+  try { const text = await navigator.clipboard.readText(); if (!text.trim()) return; document.getElementById('input').value = text; saveState(); }
+  catch(e) { alert('Clipboard access denied — paste manually.'); }
 }
-async function pasteCoord(){
-  try{
-    const text=await navigator.clipboard.readText();
-    if(!text.trim())return;
-    document.getElementById('coordInput').value=text;
-    saveState();
-  }catch(e){alert('Clipboard access denied — paste manually.');}
+async function pasteCoord() {
+  try { const text = await navigator.clipboard.readText(); if (!text.trim()) return; document.getElementById('coordInput').value = text; saveState(); }
+  catch(e) { alert('Clipboard access denied — paste manually.'); }
 }
-function clearInput(){
-  document.getElementById('input').value='';
-  document.getElementById('coordInput').value='';
-  document.getElementById('pageNum').value='';
-  document.getElementById('hasDiagram').checked=false;
-  document.getElementById('isIntersection').value='';
+function clearInput() {
+  document.getElementById('input').value = '';
+  document.getElementById('coordInput').value = '';
+  document.getElementById('intersectionInput').value = '';
+  document.getElementById('pageNum').value = '';
   saveState();
 }
-function clearTable(){renderRows([]);saveState();}
-function tableToTSV(){return getRows().map(r=>r.join('\t')).join('\n');}
-function copyTSV(){navigator.clipboard.writeText(tableToTSV());}
-function copyAndClearAll(){
-  const tsv=tableToTSV();
-  if(!tsv)return;
-  navigator.clipboard.writeText(tsv).then(()=>{
-    renderRows([]);
-    clearInput();
-  });
+function clearTable() { renderRows([]); saveState(); }
+function tableToTSV() { return getRows().map(r => r.join('\t')).join('\n'); }
+function copyTSV() { navigator.clipboard.writeText(tableToTSV()); }
+function copyAndClearAll() {
+  const tsv = tableToTSV();
+  if (!tsv) return;
+  navigator.clipboard.writeText(tsv).then(() => { renderRows([]); clearInput(); });
 }
-function downloadCSV(){
-  const rows=getRows();
-  const csv=rows.map(r=>r.map(c=>'"'+c.replace(/"/g,'""')+'"').join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='export.csv';a.click();
+function downloadCSV() {
+  const rows = getRows();
+  const csv = rows.map(r => r.map(c => '"' + c.replace(/"/g,'""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'export.csv'; a.click();
 }
 
-document.getElementById('input').addEventListener('input',saveState);
-document.getElementById('coordInput').addEventListener('input',saveState);
-document.getElementById('pageNum').addEventListener('input',saveState);
-document.getElementById('hasDiagram').addEventListener('change',saveState);
-document.getElementById('isIntersection').addEventListener('change',saveState);
-window.addEventListener('load',loadState);
+document.getElementById('input').addEventListener('input', saveState);
+document.getElementById('coordInput').addEventListener('input', saveState);
+document.getElementById('pageNum').addEventListener('input', saveState);
+window.addEventListener('load', loadState);
 </script>
 </body>
 </html>
