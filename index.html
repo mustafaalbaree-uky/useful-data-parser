@@ -1168,6 +1168,7 @@ function navigateVerify(delta) {
   clearPdfViewer();
   APP.verifyIndex = next;
   renderVerifyView();
+  // Cache persists per-index; nothing to clear here — expRenderPanel re-renders cached results automatically.
 }
 
 // ── PDF overlay viewer ────────────────────────────────────────────────────────
@@ -2064,17 +2065,45 @@ document.getElementById('lpageNum').addEventListener('input', saveLegacyState);
    which returns immediately when off). Toggle with Ctrl+Shift+U.
    ════════════════════════════════════════════════════════════════════════════ */
 
-const EXP = { model: 'claude-haiku-4-5', busy: false };
+const EXP = { model: 'claude-haiku-4-5', busy: false, cache: {} };
 
 function expToggle() {
   APP.experimental = !APP.experimental;
   localStorage.setItem('dp_experimental', APP.experimental ? '1' : '0');
   document.body.classList.toggle('experimental-on', APP.experimental);
   expToast('Experimental AI mode ' + (APP.experimental ? 'ON' : 'OFF'));
-  // Refresh the panel if we're on the verify screen.
+  if (APP.experimental && !(localStorage.getItem('dp_anthropic_key') || '').trim()) {
+    expPromptApiKey();
+  }
   const vs = document.getElementById('screen-verify');
   if (vs && vs.classList.contains('active')) expRenderPanel();
   else if (!APP.experimental) { const p = document.getElementById('expPanel'); if (p) p.style.display = 'none'; }
+}
+
+function expPromptApiKey() {
+  let modal = document.getElementById('expKeyModal');
+  if (modal) { modal.style.display = 'flex'; return; }
+  modal = document.createElement('div'); modal.id = 'expKeyModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:4000;';
+  modal.innerHTML = '<div style="background:var(--panel);border-radius:14px;padding:28px 24px;min-width:320px;max-width:420px;display:flex;flex-direction:column;gap:14px;">' +
+    '<div style="font-size:15px;font-weight:700;color:var(--text);">✨ Anthropic API Key</div>' +
+    '<div style="font-size:13px;color:var(--muted);">Enter your Anthropic API key once. It will be stored in your browser only and used for AI Verify calls.</div>' +
+    '<input id="expKeyModalInput" type="password" placeholder="sk-ant-…" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;width:100%;box-sizing:border-box;">' +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
+    '<button id="expKeyModalCancel" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--text);">Cancel</button>' +
+    '<button id="expKeyModalSave" style="background:var(--accent2);border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#fff;cursor:pointer;">Save key</button>' +
+    '</div></div>';
+  document.body.appendChild(modal);
+  const inp = modal.querySelector('#expKeyModalInput');
+  inp.value = localStorage.getItem('dp_anthropic_key') || '';
+  modal.querySelector('#expKeyModalSave').onclick = function() {
+    const v = inp.value.trim();
+    if (v) { localStorage.setItem('dp_anthropic_key', v); modal.style.display = 'none'; expRenderPanel(); }
+    else { inp.style.borderColor = '#ff6b6b'; }
+  };
+  modal.querySelector('#expKeyModalCancel').onclick = function() { modal.style.display = 'none'; };
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+  setTimeout(function() { inp.focus(); }, 50);
 }
 
 function expToast(msg) {
@@ -2107,15 +2136,19 @@ function expRenderPanel() {
   head.innerHTML = '<span class="exp-title">✨ AI Verify <span class="exp-tag">experimental</span></span>';
   panel.appendChild(head);
 
-  // API key field (persisted to localStorage)
-  const keyWrap = document.createElement('div'); keyWrap.className = 'exp-key-wrap';
-  const keyInp = document.createElement('input');
-  keyInp.type = 'password'; keyInp.className = 'exp-key-input';
-  keyInp.placeholder = 'Anthropic API key (sk-ant-…)';
-  keyInp.value = localStorage.getItem('dp_anthropic_key') || '';
-  keyInp.oninput = function() { localStorage.setItem('dp_anthropic_key', keyInp.value.trim()); };
-  keyWrap.appendChild(keyInp);
-  panel.appendChild(keyWrap);
+  // Key status row (no persistent input — key set once via modal)
+  const keyStatus = document.createElement('div');
+  keyStatus.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+  const hasKey = !!(localStorage.getItem('dp_anthropic_key') || '').trim();
+  const keyLabel = document.createElement('span');
+  keyLabel.style.cssText = 'font-size:12px;color:var(--muted);';
+  keyLabel.textContent = hasKey ? '🔑 API key set' : '⚠ No API key';
+  const changeKeyBtn = document.createElement('button');
+  changeKeyBtn.style.cssText = 'background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text);';
+  changeKeyBtn.textContent = hasKey ? 'Change key' : 'Set key';
+  changeKeyBtn.onclick = function() { expPromptApiKey(); };
+  keyStatus.appendChild(keyLabel); keyStatus.appendChild(changeKeyBtn);
+  panel.appendChild(keyStatus);
 
   const btn = document.createElement('button');
   btn.className = 'exp-analyze-btn';
@@ -2127,6 +2160,10 @@ function expRenderPanel() {
   const results = document.createElement('div');
   results.id = 'expResults'; results.className = 'exp-results';
   panel.appendChild(results);
+
+  // Re-render cached results if available for this entry
+  const cached = EXP.cache[APP.verifyIndex];
+  if (cached) expRenderSuggestions(APP.verifyIndex, cached);
 }
 
 function expResultsEl() {
@@ -2186,6 +2223,7 @@ async function expCallClaude(i) {
     const parsed = expExtractJson(text);
     EXP.busy = false; expRenderPanel();
     if (!parsed) { expMsg('Could not parse a suggestion from the model response.', 'exp-error'); return; }
+    EXP.cache[i] = parsed;
     expRenderSuggestions(i, parsed);
   } catch (err) {
     EXP.busy = false; expRenderPanel();
@@ -2206,6 +2244,8 @@ function expBuildSystemPrompt() {
     '- Use ONLY facts stated in the narrative. If the narrative does not support a field, OMIT it.',
     '- Do NOT echo or restate the parser when it is already correct. Suggest a field only when it both',
     '  (a) is supported by the narrative AND (b) differs from the current parsed value.',
+    '- EXCEPTION for unit directions: if a unit direction field is blank/empty, you SHOULD suggest it',
+    '  if the narrative supports a direction for that unit — blank is always wrong if direction is inferable.',
     '- Never invent unit numbers, directions, or causes that are not in the narrative.',
     '- For every suggestion you MUST include a verbatim quote span from the narrative that justifies it.',
     '',
@@ -2268,8 +2308,15 @@ function expRenderSuggestions(i, parsed) {
   const r = expResultsEl(); if (!r) return;
   const perField = parsed.perField || {};
   // Flatten into a list of { key, value }
+  function normalizeType(s) { return (s || '').toLowerCase().replace(/[-\s]+/g, ''); }
+  const proj = getActiveProject();
   const items = [];
-  if (parsed.collisionType) items.push({ key: 'collisionType', value: parsed.collisionType });
+  if (parsed.collisionType) {
+    const curType = proj ? (proj.rows[i][EXP_FIELD_COLS.collisionType] || '') : '';
+    if (normalizeType(parsed.collisionType) !== normalizeType(curType)) {
+      items.push({ key: 'collisionType', value: parsed.collisionType });
+    }
+  }
   if (parsed.units) ['u1','u2','u3','u4'].forEach(function(u) {
     if (parsed.units[u]) items.push({ key: u, value: parsed.units[u] });
   });
@@ -2296,7 +2343,7 @@ function expRenderSuggestions(i, parsed) {
     card.appendChild(top);
 
     const val = document.createElement('div'); val.className = 'exp-sugg-value';
-    const cur = (getActiveProject().rows[i][EXP_FIELD_COLS[it.key]] || '(none)');
+    const cur = (proj ? (proj.rows[i][EXP_FIELD_COLS[it.key]] || '(none)') : '(none)');
     val.innerHTML = '<span class="exp-cur">' + expEsc(cur) + '</span> → <span class="exp-new">' + expEsc(it.value) + '</span>';
     card.appendChild(val);
 
@@ -2326,12 +2373,9 @@ function expRenderSuggestions(i, parsed) {
 }
 
 function expApplySuggestion(i, fieldKey, value) {
-  const proj = getActiveProject(); if (!proj) return;
   const col = EXP_FIELD_COLS[fieldKey]; if (col === undefined) return;
-  proj.rows[i][col] = value;
-  updateProject(proj);
-  // Reuse the classic in-place field refresh so the verify control updates.
-  if (typeof refreshVerifyField === 'function') refreshVerifyField(fieldKey);
+  // verifyField writes the value, persists, and does in-place DOM refresh.
+  verifyField(fieldKey, col, value);
 }
 
 function expFieldLabel(key) {
