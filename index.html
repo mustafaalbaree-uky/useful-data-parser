@@ -2415,7 +2415,7 @@ function expEquivalenceLines(proj) {
   if (!eq.length) return [];
   const lines = ['', 'TERM EQUIVALENCES (defined by the analyst — treat both sides as the same thing):'];
   eq.forEach(function(e) {
-    lines.push('- "' + e.from + '" and "' + e.to + '" refer to the same road / location / entity. Do not flag a disagreement between them — they are identical for verification purposes.');
+    lines.push('- "' + e.from + '" and "' + e.to + '" refer to the same road / location / entity. The PARSED VALUE already uses the analyst\'s preferred canonical naming — it is the authoritative form. If the narrative uses the alternate name, that means the parsed value is ALREADY CORRECT (verdict "ok"). NEVER suggest changing the parsed value to the narrative\'s alternate phrasing. The equivalence suppresses disagreement in both directions: whichever side the narrative uses, the parsed value is fine as-is.');
   });
   return lines;
 }
