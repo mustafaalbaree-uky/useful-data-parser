@@ -209,7 +209,11 @@ body.experimental-on .topbar-title::after { content: ' • EXPERIMENTAL'; color:
 .exp-note { font-size: 12px; color: var(--muted); padding: 4px 0; }
 .exp-note.exp-error { color: #ff6b6b; }
 .exp-note.exp-ok { color: #4caf78; font-weight: 600; }
-.exp-suggestion { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--panel); display: flex; flex-direction: column; gap: 6px; }
+.exp-suggestion { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--panel); display: flex; flex-direction: column; gap: 6px; border-left-width: 3px; }
+.exp-suggestion.exp-v-ok { border-left-color: #4caf78; }
+.exp-suggestion.exp-v-change { border-left-color: var(--accent2); }
+.exp-suggestion.exp-v-unknown { border-left-color: var(--muted); }
+.exp-unknown { color: var(--muted); font-style: italic; }
 .exp-suggestion.exp-accepted { opacity: .6; }
 .exp-sugg-top { display: flex; align-items: center; justify-content: space-between; }
 .exp-sugg-field { font-size: 12px; font-weight: 600; color: var(--text); }
@@ -2179,7 +2183,8 @@ function expMsg(text, cls) {
 }
 
 // Field metadata for mapping AI suggestions → row columns + classic refresh.
-const EXP_FIELD_COLS = { collisionType: 5, u1: 7, u2: 8, u3: 9, u4: 10, notes: 13 };
+const EXP_FIELD_COLS = { intersection: 0, collisionType: 5, u1: 7, u2: 8, u3: 9, u4: 10, notes: 13 };
+const EXP_FIELD_ORDER = ['intersection', 'collisionType', 'u1', 'u2', 'u3', 'u4', 'notes'];
 
 async function expCallClaude(i) {
   const key = (localStorage.getItem('dp_anthropic_key') || '').trim();
@@ -2206,7 +2211,7 @@ async function expCallClaude(i) {
       },
       body: JSON.stringify({
         model: EXP.model,
-        max_tokens: 500,
+        max_tokens: 1024,
         temperature: 0,
         system: system,
         messages: [{ role: 'user', content: user }]
@@ -2238,47 +2243,56 @@ function expBuildSystemPrompt() {
   return [
     'You are a crash-report verification assistant for a traffic-records analyst.',
     'You are given an officer\'s free-text narrative plus fields a parser already extracted.',
-    'Your job is ONLY to catch where the parsed fields disagree with the narrative and propose corrections.',
+    'For EACH field requested, return an explicit verdict — never stay silent on a field.',
+    '',
+    'For every field, pick exactly one verdict:',
+    '- "ok"      → the parsed value is correct and supported by the narrative. Echo the value in "value".',
+    '- "change"  → the parsed value is wrong or incomplete; put the corrected value in "value".',
+    '- "unknown" → the narrative does not contain enough information to determine this field.',
+    '              For a blank unit direction that truly cannot be inferred, use verdict "change"',
+    '              with value "N/A" (N/A is a real, correct answer — blank is never acceptable).',
+    '              Reserve "unknown" for cases where you genuinely cannot tell even an N/A.',
     '',
     'Hard rules:',
-    '- Use ONLY facts stated in the narrative. If the narrative does not support a field, OMIT it.',
-    '- Do NOT echo or restate the parser when it is already correct. Suggest a field only when it both',
-    '  (a) is supported by the narrative AND (b) differs from the current parsed value.',
-    '- EXCEPTION for unit directions: if a unit direction field is blank/empty, you SHOULD suggest it',
-    '  if the narrative supports a direction for that unit — blank is always wrong if direction is inferable.',
-    '- Never invent unit numbers, directions, or causes that are not in the narrative.',
-    '- For every suggestion you MUST include a verbatim quote span from the narrative that justifies it.',
+    '- Use ONLY facts stated in the narrative. Never invent unit numbers, directions, streets, or causes.',
+    '- For verdict "ok" or "change" you MUST include a verbatim quote span from the narrative that justifies it.',
+    '- For "unknown" the quote may be empty; explain briefly in "reasoning" why it cannot be determined.',
     '',
     'Collision type vocabulary (prefer these): ' + vocab + '.',
     'Direction codes: NB, SB, EB, WB, or N/A.',
+    'Intersection format: the cross-streets or location named in the narrative (e.g. "N BROADWAY & W 7TH ST").',
     'Notes style: terse and fault-oriented, e.g. "U1 failed to yield to U2" or "U2 rear-ended U1".',
     'Good note: "U1 ran red light, struck U2". Bad note: "Unit one was driving and then there was a collision with the other vehicle".',
     '',
-    'Respond with JSON ONLY, no prose outside it, in exactly this shape (omit any key you have no change for):',
+    'Respond with JSON ONLY, no prose outside it, in exactly this shape:',
     '{',
-    '  "collisionType": "<type>",',
-    '  "units": { "u1": "<dir>", "u2": "<dir>", "u3": "<dir>", "u4": "<dir>" },',
-    '  "notes": "<note>",',
-    '  "perField": { "<fieldKey>": { "reasoning": "<short>", "quote": "<verbatim>", "confidence": 0.0 } }',
+    '  "fields": {',
+    '    "<fieldKey>": { "verdict": "ok|change|unknown", "value": "<value>", "reasoning": "<short>", "quote": "<verbatim or empty>", "confidence": 0.0 }',
+    '  }',
     '}',
-    'fieldKey is one of: collisionType, u1, u2, u3, u4, notes.',
-    'If the parse already matches the narrative, return {} (empty object).'
+    'Include an entry for every field listed in the user message under "FIELDS TO VERIFY". Do not add fields that are not listed.',
+    'fieldKey is one of: intersection, collisionType, u1, u2, u3, u4, notes.'
   ].join('\n');
 }
 
 function expBuildUserMessage(row, narrative) {
-  const fields = [
-    'Intersection: ' + (row[0] || '(none)'),
-    'Collision type (parsed): ' + (row[5] || '(none)'),
-    'Unit 1 direction (parsed): ' + (row[7] || '(none)'),
-    'Unit 2 direction (parsed): ' + (row[8] || '(none)'),
-    'Unit 3 direction (parsed): ' + (row[9] || '(none)'),
-    'Unit 4 direction (parsed): ' + (row[10] || '(none)'),
-    'Unit count: ' + (row[12] || '(none)'),
-    'Notes (deterministic guess): ' + (row[13] || '(none)')
-  ].join('\n');
-  return 'OFFICER NARRATIVE:\n' + narrative + '\n\nPARSED FIELDS:\n' + fields +
-    '\n\nReturn JSON-only suggestions per the rules.';
+  const count = parseInt(row[12], 10);
+  const nUnits = (count >= 1 && count <= 4) ? count : 2;
+  const lines = [
+    'Intersection (parsed): ' + (row[0] || '(blank)'),
+    'Collision type (parsed): ' + (row[5] || '(blank)')
+  ];
+  const unitCols = [7, 8, 9, 10];
+  const wantUnits = [];
+  for (let u = 0; u < nUnits; u++) {
+    lines.push('Unit ' + (u + 1) + ' direction (parsed): ' + (row[unitCols[u]] || '(blank)'));
+    wantUnits.push('u' + (u + 1));
+  }
+  lines.push('Notes (deterministic guess): ' + (row[13] || '(blank)'));
+  const fieldKeys = ['intersection', 'collisionType'].concat(wantUnits).concat(['notes']);
+  return 'OFFICER NARRATIVE:\n' + narrative + '\n\nPARSED FIELDS:\n' + lines.join('\n') +
+    '\n\nFIELDS TO VERIFY (return a verdict for each): ' + fieldKeys.join(', ') +
+    '\n\nReturn JSON-only verdicts per the rules.';
 }
 
 // Tolerant extraction of the first balanced {...} block.
@@ -2304,34 +2318,42 @@ function expExtractJson(text) {
   return null;
 }
 
+function expNormalize(s) { return (s || '').toString().trim().toLowerCase().replace(/[-\s]+/g, ' ').trim(); }
+
 function expRenderSuggestions(i, parsed) {
   const r = expResultsEl(); if (!r) return;
-  const perField = parsed.perField || {};
-  // Flatten into a list of { key, value }
-  function normalizeType(s) { return (s || '').toLowerCase().replace(/[-\s]+/g, ''); }
   const proj = getActiveProject();
+  const fields = parsed.fields || {};
+
+  // Build an ordered verdict list for every field the model returned.
   const items = [];
-  if (parsed.collisionType) {
-    const curType = proj ? (proj.rows[i][EXP_FIELD_COLS.collisionType] || '') : '';
-    if (normalizeType(parsed.collisionType) !== normalizeType(curType)) {
-      items.push({ key: 'collisionType', value: parsed.collisionType });
+  EXP_FIELD_ORDER.forEach(function(key) {
+    const f = fields[key];
+    if (!f || typeof f !== 'object') return;
+    const col = EXP_FIELD_COLS[key];
+    const cur = proj ? (proj.rows[i][col] || '') : '';
+    let verdict = f.verdict || (f.value ? 'change' : 'unknown');
+    let value = (f.value != null ? String(f.value) : '').trim();
+    // Backstop: if the model said "change" but the normalized value matches the
+    // current parsed value (e.g. "Rear end" vs "Rear-end"), treat it as "ok".
+    if (verdict === 'change' && value && cur && expNormalize(value) === expNormalize(cur)) {
+      verdict = 'ok';
     }
-  }
-  if (parsed.units) ['u1','u2','u3','u4'].forEach(function(u) {
-    if (parsed.units[u]) items.push({ key: u, value: parsed.units[u] });
+    items.push({ key: key, verdict: verdict, value: value, cur: cur, meta: f });
   });
-  if (typeof parsed.notes === 'string' && parsed.notes.trim()) items.push({ key: 'notes', value: parsed.notes.trim() });
 
   if (!items.length) {
-    const ok = document.createElement('div'); ok.className = 'exp-note exp-ok';
-    ok.textContent = '✓ No changes suggested — the parse matches the narrative.';
+    const ok = document.createElement('div'); ok.className = 'exp-note';
+    ok.textContent = 'No verdicts returned for this entry.';
     r.appendChild(ok);
     return;
   }
 
+  let changeCount = 0;
+
   items.forEach(function(it) {
-    const meta = perField[it.key] || {};
-    const card = document.createElement('div'); card.className = 'exp-suggestion';
+    const meta = it.meta || {};
+    const card = document.createElement('div'); card.className = 'exp-suggestion exp-v-' + it.verdict;
 
     const top = document.createElement('div'); top.className = 'exp-sugg-top';
     const label = document.createElement('span'); label.className = 'exp-sugg-field';
@@ -2343,29 +2365,51 @@ function expRenderSuggestions(i, parsed) {
     card.appendChild(top);
 
     const val = document.createElement('div'); val.className = 'exp-sugg-value';
-    const cur = (proj ? (proj.rows[i][EXP_FIELD_COLS[it.key]] || '(none)') : '(none)');
-    val.innerHTML = '<span class="exp-cur">' + expEsc(cur) + '</span> → <span class="exp-new">' + expEsc(it.value) + '</span>';
+    if (it.verdict === 'ok') {
+      val.innerHTML = '<span class="exp-ok">✓ Correct</span> — <span class="exp-new">' + expEsc(it.value || it.cur || '(blank)') + '</span>';
+    } else if (it.verdict === 'change') {
+      val.innerHTML = '<span class="exp-cur">' + expEsc(it.cur || '(blank)') + '</span> → <span class="exp-new">' + expEsc(it.value || '(blank)') + '</span>';
+    } else {
+      val.innerHTML = '<span class="exp-unknown">Cannot determine from narrative</span>';
+    }
     card.appendChild(val);
 
     if (meta.reasoning) { const rsn = document.createElement('div'); rsn.className = 'exp-sugg-reason'; rsn.textContent = meta.reasoning; card.appendChild(rsn); }
     if (meta.quote) { const q = document.createElement('div'); q.className = 'exp-sugg-quote'; q.textContent = '“' + meta.quote + '”'; card.appendChild(q); }
 
-    const accept = document.createElement('button'); accept.className = 'exp-accept';
-    accept.textContent = 'Accept';
-    accept.onclick = function() { expApplySuggestion(i, it.key, it.value); card.classList.add('exp-accepted'); accept.textContent = '✓ Accepted'; accept.disabled = true; };
-    card.appendChild(accept);
+    if (it.verdict === 'ok') {
+      // One-click verify of the value already in the field.
+      const verifyBtn = document.createElement('button'); verifyBtn.className = 'exp-accept';
+      verifyBtn.textContent = 'Verify';
+      verifyBtn.onclick = function() {
+        expApplySuggestion(i, it.key, it.value || it.cur);
+        card.classList.add('exp-accepted'); verifyBtn.textContent = '✓ Verified'; verifyBtn.disabled = true;
+      };
+      card.appendChild(verifyBtn);
+    } else if (it.verdict === 'change') {
+      changeCount++;
+      const accept = document.createElement('button'); accept.className = 'exp-accept';
+      accept.textContent = 'Accept';
+      accept.onclick = function() {
+        expApplySuggestion(i, it.key, it.value);
+        card.classList.add('exp-accepted'); accept.textContent = '✓ Accepted'; accept.disabled = true;
+      };
+      card.appendChild(accept);
+    }
+    // verdict "unknown": informational only, no action button.
 
     r.appendChild(card);
   });
 
-  if (items.length > 1) {
+  if (changeCount > 1) {
     const all = document.createElement('button'); all.className = 'exp-accept-all';
-    all.textContent = 'Accept all';
+    all.textContent = 'Accept all changes';
     all.onclick = function() {
-      items.forEach(function(it) { expApplySuggestion(i, it.key, it.value); });
-      expToast('Applied ' + items.length + ' suggestions');
-      r.querySelectorAll('.exp-accept').forEach(function(b) { b.textContent = '✓ Accepted'; b.disabled = true; });
-      r.querySelectorAll('.exp-suggestion').forEach(function(c) { c.classList.add('exp-accepted'); });
+      let n = 0;
+      items.forEach(function(it) { if (it.verdict === 'change') { expApplySuggestion(i, it.key, it.value); n++; } });
+      expToast('Applied ' + n + ' change' + (n === 1 ? '' : 's'));
+      r.querySelectorAll('.exp-v-change .exp-accept').forEach(function(b) { b.textContent = '✓ Accepted'; b.disabled = true; });
+      r.querySelectorAll('.exp-v-change').forEach(function(c) { c.classList.add('exp-accepted'); });
       all.disabled = true;
     };
     r.appendChild(all);
@@ -2379,7 +2423,7 @@ function expApplySuggestion(i, fieldKey, value) {
 }
 
 function expFieldLabel(key) {
-  return ({ collisionType: 'Collision Type', u1: 'Unit 1', u2: 'Unit 2', u3: 'Unit 3', u4: 'Unit 4', notes: 'Notes' })[key] || key;
+  return ({ intersection: 'Intersection', collisionType: 'Collision Type', u1: 'Unit 1', u2: 'Unit 2', u3: 'Unit 3', u4: 'Unit 4', notes: 'Notes' })[key] || key;
 }
 
 function expEsc(s) {
