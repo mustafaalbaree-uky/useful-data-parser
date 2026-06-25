@@ -160,11 +160,9 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 .diagram-page-bar button { white-space: nowrap; }
 .diagram-canvas-scroll { overflow: auto; }
 .diagram-page-wrap canvas { display: block; max-width: 100%; cursor: zoom-in; }
-.diagram-page-wrap canvas.zoomed { max-width: none; width: 200%; cursor: zoom-out; }
 .diagram-page-wrap.diagram-fullscreen { position: fixed; inset: 0; z-index: 400; border-radius: 0; margin: 0; display: flex; flex-direction: column; }
-.diagram-page-wrap.diagram-fullscreen .diagram-canvas-scroll { flex: 1; display: flex; }
-.diagram-page-wrap.diagram-fullscreen canvas { max-height: calc(100vh - 40px); max-width: 100%; margin: auto; object-fit: contain; }
-.diagram-page-wrap.diagram-fullscreen canvas.zoomed { max-height: none; max-width: none; width: auto; margin: 0; }
+.diagram-page-wrap.diagram-fullscreen .diagram-canvas-scroll { flex: 1; overflow: auto; background: #111; display: flex; align-items: flex-start; justify-content: center; }
+.diagram-page-wrap.diagram-fullscreen canvas { max-width: none; max-height: none; height: calc(100vh - 44px); width: auto; cursor: zoom-in; }
 #pdfPagesWrap.pdf-fullscreen { position: fixed; inset: 0; z-index: 300; border-radius: 0; margin: 0; display: flex !important; flex-direction: column; }
 #pdfPagesWrap.pdf-fullscreen #pdfPagesContainer { max-height: none; flex: 1; }
 
@@ -324,11 +322,11 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         </div>
         <div class="verify-info-grid" id="verifyInfoGrid"></div>
         <div class="verify-fields" id="verifyFields"></div>
-        <button class="view-pdf-btn" onclick="viewInPdf()" style="margin-top:12px;">View in PDF</button>
-        <div id="verifySourcePdf" style="margin-top:6px; font-size:11px; font-style:italic; color:var(--muted); word-break:break-all;"></div>
       </div>
       <div class="verify-right">
-        <div class="verify-panel">
+        <button class="view-pdf-btn" onclick="viewInPdf()">View in PDF</button>
+        <div id="verifySourcePdf" style="margin-top:6px; font-size:11px; font-style:italic; color:var(--muted); word-break:break-all;"></div>
+        <div class="verify-panel" style="margin-top:10px;">
           <div class="verify-panel-label">Supporting text</div>
           <div id="verifyNarrative"></div>
         </div>
@@ -857,25 +855,31 @@ function buildDiagramCard(canvas, pageNum) {
   const dWrap = document.createElement('div'); dWrap.className = 'diagram-page-wrap';
   const dBar = document.createElement('div'); dBar.className = 'diagram-page-bar';
   const dLbl = document.createElement('span'); dLbl.textContent = 'Diagram – Page ' + pageNum;
-  const dBtns = document.createElement('span'); dBtns.style.cssText = 'display:flex; gap:6px;';
-  const dFs = document.createElement('button'); dFs.className = 'btn-sec'; dFs.textContent = '⧆ Fullscreen';
-  const dClose = document.createElement('button'); dClose.className = 'btn-sec'; dClose.textContent = '✕ Close'; dClose.style.display = 'none';
+  const dFs = document.createElement('button'); dFs.className = 'btn-sec'; dFs.textContent = '⛶ Fullscreen';
+  let zoomed = false;
+  function applyZoom() {
+    const fs = dWrap.classList.contains('diagram-fullscreen');
+    canvas.style.cursor = zoomed ? 'zoom-out' : 'zoom-in';
+    if (fs) {
+      canvas.style.height = zoomed ? 'calc(200vh - 88px)' : 'calc(100vh - 44px)';
+      canvas.style.width = 'auto';
+      canvas.style.maxWidth = 'none';
+    } else {
+      canvas.style.height = '';
+      canvas.style.maxWidth = zoomed ? 'none' : '100%';
+      canvas.style.width = zoomed ? '200%' : '';
+    }
+  }
   dFs.onclick = function() {
     const fs = dWrap.classList.toggle('diagram-fullscreen');
-    dClose.style.display = fs ? '' : 'none';
-    dFs.textContent = fs ? '⧆ Exit' : '⧆ Fullscreen';
+    dFs.textContent = fs ? '✕ Exit Fullscreen' : '⛶ Fullscreen';
+    zoomed = false;
+    applyZoom();
   };
-  dClose.onclick = function() {
-    dWrap.classList.remove('diagram-fullscreen');
-    canvas.classList.remove('zoomed');
-    dClose.style.display = 'none';
-    dFs.textContent = '⧆ Fullscreen';
-  };
-  dBtns.appendChild(dFs); dBtns.appendChild(dClose);
-  dBar.appendChild(dLbl); dBar.appendChild(dBtns);
-  const scroll = document.createElement('div'); scroll.className = 'diagram-canvas-scroll';
   canvas.title = 'Click to zoom in / out';
-  canvas.onclick = function() { canvas.classList.toggle('zoomed'); };
+  canvas.onclick = function() { zoomed = !zoomed; applyZoom(); };
+  dBar.appendChild(dLbl); dBar.appendChild(dFs);
+  const scroll = document.createElement('div'); scroll.className = 'diagram-canvas-scroll';
   scroll.appendChild(canvas);
   dWrap.appendChild(dBar); dWrap.appendChild(scroll);
   return dWrap;
