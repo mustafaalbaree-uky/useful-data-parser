@@ -730,6 +730,20 @@ function renderTableView() {
   renderRows(proj.rows, proj.verified || {});
 }
 
+// Returns the effective verified-state for a row, augmenting the stored state
+// with live auto-N/A for unit fields whose number exceeds the detected unit
+// count (so the table matches the verify screen even for older saved projects).
+function effectiveVerified(row, verState) {
+  const out = Object.assign({}, verState || {});
+  const unitCount = parseInt(row[12], 10) || 0;
+  const unitNum = { u1: 1, u2: 2, u3: 3, u4: 4 };
+  ['u1','u2','u3','u4'].forEach(function(key) {
+    const col = { u1: 7, u2: 8, u3: 9, u4: 10 }[key];
+    if (unitNum[key] > unitCount && !row[col]) out[key] = true;
+  });
+  return out;
+}
+
 function renderRows(rows, verified) {
   verified = verified || {};
   const tbody = document.getElementById('tbody');
@@ -740,7 +754,7 @@ function renderRows(rows, verified) {
   }
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const verState = verified[i] || {};
+    const verState = effectiveVerified(row, verified[i] || {});
     const hasAnyUnverified = VERIFY_FIELDS.some(function(f) { return !verState[f.key]; });
     const unverifiedCols = new Set();
     VERIFY_FIELDS.forEach(function(f) { if (!verState[f.key]) unverifiedCols.add(f.col); });
@@ -840,13 +854,9 @@ function clearTable() {
 function buildVerifyFieldEl(f, i) {
   const proj = getActiveProject();
   const row = proj.rows[i];
-  const v = (proj.verified || {})[i] || {};
+  const v = effectiveVerified(row, (proj.verified || {})[i] || {});
   const isUnit = function(key) { return key === 'u1' || key === 'u2' || key === 'u3' || key === 'u4'; };
-  const unitCount = parseInt(row[12], 10) || 0;
-  const unitNum = { u1: 1, u2: 2, u3: 3, u4: 4 };
-  // A unit field is auto-N/A when its number exceeds the detected unit count and has no manually entered value.
-  const isAutoNA = isUnit(f.key) && unitNum[f.key] > unitCount && !row[f.col];
-  const isV = isAutoNA || !!v[f.key];
+  const isV = !!v[f.key];
   const div = document.createElement('div');
   div.className = 'verify-field ' + (isV ? 'verified' : 'unverified');
   if (isUnit(f.key)) div.className += ' verify-field-unit';
