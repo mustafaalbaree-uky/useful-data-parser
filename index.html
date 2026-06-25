@@ -162,11 +162,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 .view-pdf-btn { background: var(--accent2); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .view-pdf-btn:hover { background: var(--accent); }
 
-/* PDF viewer — full-width below two-column grid */
-#pdfPagesWrap { display: none; margin-top: 20px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.pdf-pages-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel2); border-bottom: 1px solid var(--border); }
-.pdf-pages-title { flex: 1; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
-#pdfPagesContainer { max-height: 70vh; overflow-y: auto; padding: 10px; background: var(--panel); }
+/* Diagram display */
 .diagram-page-wrap { border: 2px solid var(--accent2); border-radius: 8px; overflow: hidden; margin-bottom: 12px; background: var(--panel); }
 .diagram-page-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--accent2); color: #fff; font-size: 12px; font-weight: 600; }
 .diagram-page-bar button { white-space: nowrap; }
@@ -175,8 +171,6 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 .diagram-page-wrap.diagram-fullscreen { position: fixed; inset: 0; z-index: 1000; border-radius: 0; margin: 0; display: flex; flex-direction: column; }
 .diagram-page-wrap.diagram-fullscreen .diagram-canvas-scroll { flex: 1; overflow: auto; background: #111; display: flex; align-items: flex-start; justify-content: center; }
 .diagram-page-wrap.diagram-fullscreen canvas { max-width: none; max-height: none; height: calc(100vh - 44px); width: auto; cursor: zoom-in; }
-#pdfPagesWrap.pdf-fullscreen { position: fixed; inset: 0; z-index: 300; border-radius: 0; margin: 0; display: flex !important; flex-direction: column; }
-#pdfPagesWrap.pdf-fullscreen #pdfPagesContainer { max-height: none; flex: 1; }
 
 /* modal */
 .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
@@ -349,15 +343,6 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
       <div class="verify-panel-label">Diagram</div>
       <div id="verifyDiagram"></div>
     </div>
-    <!-- PDF viewer — full width below both columns -->
-    <div id="pdfPagesWrap">
-      <div class="pdf-pages-bar">
-        <span class="pdf-pages-title" id="pdfPagesTitle">PDF Pages</span>
-        <button class="btn-sec" onclick="togglePdfFullscreen()">⛶ Fullscreen</button>
-        <button class="btn-sec" onclick="closePdfViewer()">✕ Close</button>
-      </div>
-      <div id="pdfPagesContainer"></div>
-    </div>
   </div>
 </div>
 
@@ -463,7 +448,7 @@ const LS_LEGACY = 'dp_legacy_v1';
 const COL_COUNT = 16;
 
 const APP = { projectId: null, verifyIndex: 0 };
-const SESSION = { pdf: null, pdfProjectId: null, pdfFileName: null, pdfUrl: null };
+const SESSION = { pdfs: {}, pdfProjectId: null, pdfViewerPage: 0, pdfViewerStart: 0, pdfViewerEnd: 0 };
 
 // ── Project store ─────────────────────────────────────────────────────────────
 function getProjects() {
@@ -489,14 +474,10 @@ function updateProject(proj) {
 
 // ── Session cache helpers ─────────────────────────────────────────────────────
 function clearSessionCache() {
-  SESSION.pdf = null; SESSION.pdfProjectId = null; SESSION.pdfFileName = null;
-  if (SESSION.pdfUrl) { URL.revokeObjectURL(SESSION.pdfUrl); SESSION.pdfUrl = null; }
+  SESSION.pdfs = {}; SESSION.pdfProjectId = null;
 }
 function clearPdfViewer() {
-  const wrap = document.getElementById('pdfPagesWrap');
-  if (wrap) { wrap.style.display = 'none'; wrap.classList.remove('pdf-fullscreen'); }
-  const container = document.getElementById('pdfPagesContainer');
-  if (container) container.innerHTML = '';
+  closePdfOverlay();
 }
 
 // ── Screen management ─────────────────────────────────────────────────────────
@@ -600,7 +581,7 @@ async function processAndCreate() {
   const tmpId = genId();
   APP.projectId = tmpId;
 
-  const allRows = [], allNarrative = [], allReportPages = [], allPdfNames = [], allRowSources = [];
+  const allRows = [], allNarrative = [], allReportPages = [], allPdfNames = [], allRowSources = [], allRowHasDiagram = [];
   for (const file of fileInput.files) {
     const result = await processPdfForProject(file, status);
     if (!result) { btn.disabled = false; return; }
@@ -609,6 +590,7 @@ async function processAndCreate() {
     allReportPages.push(...result.reportPages);
     allPdfNames.push(file.name);
     allRowSources.push(...result.rows.map(function() { return file.name; }));
+    allRowHasDiagram.push(...(result.rowHasDiagram || result.rows.map(() => false)));
   }
 
   btn.disabled = false;
@@ -622,6 +604,7 @@ async function processAndCreate() {
     narrative: allNarrative,
     reportPages: allReportPages,
     rowSources: allRowSources,
+    rowHasDiagram: allRowHasDiagram,
     verified: buildAutoVerified(allRows),
   };
   // Update SESSION so it's keyed to the real project id
@@ -661,6 +644,9 @@ function addPdfToProject() {
       // rowSources: backfill existing rows if needed
       if (!p.rowSources) p.rowSources = new Array(existingCount).fill(p.pdfName || '');
       p.rowSources.push(...result.rows.map(function() { return file.name; }));
+      // rowHasDiagram: backfill existing rows if needed
+      if (!p.rowHasDiagram) p.rowHasDiagram = new Array(existingCount).fill(false);
+      p.rowHasDiagram.push(...(result.rowHasDiagram || result.rows.map(() => false)));
       // auto-verify empty unit fields in newly added rows
       const newAutoVerified = buildAutoVerified(result.rows);
       if (!p.verified) p.verified = {};
@@ -882,7 +868,7 @@ function renderVerifyView() {
   } else {
     narrEl.className = 'verify-empty-text'; narrEl.textContent = 'No supporting text for this entry.';
   }
-  // pdfPagesWrap is NOT touched here — persists across verify/edit clicks
+  // PDF overlay is NOT touched here — persists across verify/edit clicks
 
   // Auto-render the detected diagram page under supporting text
   renderDiagramForEntry();
@@ -974,15 +960,27 @@ async function renderDiagramForEntry() {
   const range = (proj.reportPages || [])[i];
   if (!range) return;
   const rowSource = (proj.rowSources || [])[i] || proj.pdfName || '';
-  const cacheValid = SESSION.pdf
-    && SESSION.pdfProjectId === APP.projectId
-    && SESSION.pdfFileName === rowSource;
-  if (!cacheValid) return; // PDF not loaded yet; nothing to show
+
+  // If project changed, pdfs cache is stale
+  const projectMatch = SESSION.pdfProjectId === APP.projectId;
+  const pdf = projectMatch ? SESSION.pdfs[rowSource] : null;
+
+  if (!pdf) {
+    // If we know this row has a diagram, show a prompt; otherwise stay hidden
+    if ((proj.rowHasDiagram || [])[i]) {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'color:var(--muted); font-size:13px; font-style:italic; padding:12px 0;';
+      msg.textContent = 'Diagram available — click "View in PDF" to load.';
+      container.appendChild(msg);
+      panel.style.display = '';
+    }
+    return;
+  }
 
   const reqIndex = i; // guard against navigating away mid-render
   for (let p = range.start; p <= range.end; p++) {
     try {
-      const page = await SESSION.pdf.getPage(p);
+      const page = await pdf.getPage(p);
       const tc = await page.getTextContent();
       if (tc.items.length !== 0) continue; // only text-free (diagram) pages
       if (APP.verifyIndex !== reqIndex) return; // user navigated; abort
@@ -1027,27 +1025,57 @@ function navigateVerify(delta) {
   renderVerifyView();
 }
 
-// ── PDF viewer controls ───────────────────────────────────────────────────────
-function togglePdfFullscreen() {
-  document.getElementById('pdfPagesWrap').classList.toggle('pdf-fullscreen');
+// ── PDF overlay viewer ────────────────────────────────────────────────────────
+function _pdfOverlayKeydown(e) {
+  if (e.key === 'ArrowLeft') navigatePdfPage(-1);
+  else if (e.key === 'ArrowRight') navigatePdfPage(1);
+  else if (e.key === 'Escape') closePdfOverlay();
 }
-function closePdfViewer() {
-  clearPdfViewer();
+function openPdfOverlay() {
+  const ov = document.getElementById('pdfViewerOverlay');
+  ov.style.display = 'flex';
+  document.addEventListener('keydown', _pdfOverlayKeydown);
+}
+function closePdfOverlay() {
+  const ov = document.getElementById('pdfViewerOverlay');
+  if (ov) ov.style.display = 'none';
+  document.removeEventListener('keydown', _pdfOverlayKeydown);
+}
+async function renderPdfOverlayPage() {
+  const proj = getActiveProject(); if (!proj) return;
+  const rowSource = (proj.rowSources || [])[APP.verifyIndex] || proj.pdfName || '';
+  const pdf = SESSION.pdfs[rowSource]; if (!pdf) return;
+  try {
+    const page = await pdf.getPage(SESSION.pdfViewerPage);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.getElementById('pdfViewerCanvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const total = SESSION.pdfViewerEnd - SESSION.pdfViewerStart + 1;
+    const cur = SESSION.pdfViewerPage - SESSION.pdfViewerStart + 1;
+    document.getElementById('pdfViewerPageLabel').textContent = 'Page ' + cur + ' of ' + total + (rowSource ? '  ·  ' + rowSource : '');
+  } catch(e) {}
+}
+function navigatePdfPage(dir) {
+  const next = SESSION.pdfViewerPage + dir;
+  if (next < SESSION.pdfViewerStart || next > SESSION.pdfViewerEnd) return;
+  SESSION.pdfViewerPage = next;
+  renderPdfOverlayPage();
 }
 
-async function pickAndCachePdf() {
+async function pickAndCachePdf(rowSource) {
   return new Promise(function(resolve) {
     const fileInput = document.createElement('input');
     fileInput.type = 'file'; fileInput.accept = '.pdf';
     fileInput.onchange = async function() {
       const file = fileInput.files[0]; if (!file) { resolve(false); return; }
       try {
-        if (SESSION.pdfUrl) URL.revokeObjectURL(SESSION.pdfUrl);
         const url = URL.createObjectURL(file);
         const pdf = await pdfjsLib.getDocument({ url }).promise;
-        SESSION.pdf = pdf; SESSION.pdfProjectId = APP.projectId;
-        SESSION.pdfFileName = file.name; SESSION.pdfUrl = url;
-        resolve(true);
+        URL.revokeObjectURL(url);
+        SESSION.pdfs[file.name] = pdf;
+        SESSION.pdfProjectId = APP.projectId;
+        resolve(file.name);
       } catch(e) { alert('Could not load PDF: ' + e.message); resolve(false); }
     };
     fileInput.click();
@@ -1055,54 +1083,29 @@ async function pickAndCachePdf() {
 }
 
 async function viewInPdf() {
-  const proj = getActiveProject();
-  if (!proj) return;
+  const proj = getActiveProject(); if (!proj) return;
   const i = APP.verifyIndex;
   const range = (proj.reportPages || [])[i];
   const pageNum = parseInt((proj.rows[i] || [])[14], 10);
-  const rowSource = (proj.rowSources || [])[i] || proj.pdfName || '';
+  let rowSource = (proj.rowSources || [])[i] || proj.pdfName || '';
 
-  // Use cache only if same project AND same source PDF file
-  const cacheValid = SESSION.pdf
-    && SESSION.pdfProjectId === APP.projectId
-    && SESSION.pdfFileName === rowSource;
+  // If project changed, clear all cached PDFs
+  if (SESSION.pdfProjectId !== APP.projectId) clearSessionCache();
 
-  if (!cacheValid) {
-    const ok = await pickAndCachePdf();
-    if (!ok) return;
+  // If this source PDF isn't cached yet, ask user to load it
+  if (!SESSION.pdfs[rowSource]) {
+    const loadedName = await pickAndCachePdf(rowSource);
+    if (!loadedName) return;
+    rowSource = loadedName;
   }
 
   const startPage = range ? range.start : (isNaN(pageNum) ? 1 : pageNum);
   const endPage = range ? range.end : startPage;
-
-  // Update title with page range info
-  const titleEl = document.getElementById('pdfPagesTitle');
-  if (titleEl) titleEl.textContent = 'Pages ' + startPage + (endPage !== startPage ? '–' + endPage : '') + (rowSource ? '  ·  ' + rowSource : '');
-
-  const wrap = document.getElementById('pdfPagesWrap');
-  const container = document.getElementById('pdfPagesContainer');
-  container.innerHTML = '';
-  wrap.style.display = 'block';
-
-  for (let p = startPage; p <= endPage; p++) {
-    try {
-      const page = await SESSION.pdf.getPage(p);
-      const tc = await page.getTextContent();
-      const isDiagram = tc.items.length === 0;
-      const viewport = page.getViewport({ scale: 1.5 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width; canvas.height = viewport.height;
-      canvas.style.display = 'block';
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      if (isDiagram) {
-        container.appendChild(buildDiagramCard(canvas, p));
-      } else {
-        canvas.style.maxWidth = '100%'; canvas.style.marginBottom = '8px';
-        container.appendChild(canvas);
-      }
-    } catch(e) { /* skip pages that fail to render */ }
-  }
-  // Now that the PDF is cached, populate the inline diagram panel for this entry
+  SESSION.pdfViewerStart = startPage;
+  SESSION.pdfViewerEnd = endPage;
+  SESSION.pdfViewerPage = startPage;
+  openPdfOverlay();
+  renderPdfOverlayPage();
   renderDiagramForEntry();
 }
 
@@ -1451,10 +1454,12 @@ function inferCollisionInfo(units, reportedType) {
 
   // Flag if inferred type doesn't match police-reported type
   if (inferredType && reportedType) {
-    const rep = reportedType.toLowerCase();
-    const inf = inferredType.toLowerCase();
+    // Normalize: lowercase, strip hyphens and extra spaces for comparison
+    const norm = function(s) { return s.toLowerCase().replace(/[-\s]+/g, ' ').trim(); };
+    const rep = norm(reportedType);
+    const inf = norm(inferredType);
     if (!rep.includes(inf) && !inf.includes(rep)) {
-      const flag = '(dirs suggest ' + inferredType + ')';
+      const flag = '(algorithm detected ' + inferredType + ')';
       notes = notes ? notes + ' ' + flag : flag;
     }
   }
@@ -1514,10 +1519,8 @@ async function processPdfForProject(file, statusEl) {
   try { pdf = await pdfjsLib.getDocument({ url }).promise; }
   catch(e) { statusEl.textContent = 'Error loading PDF: ' + e.message; URL.revokeObjectURL(url); return null; }
 
-  // Cache PDF in session (keyed by project id + filename)
-  if (SESSION.pdfUrl) URL.revokeObjectURL(SESSION.pdfUrl);
-  SESSION.pdf = pdf; SESSION.pdfProjectId = APP.projectId;
-  SESSION.pdfFileName = file.name; SESSION.pdfUrl = url;
+  // Cache PDF in session map (keyed by filename) — revoking immediately after is fine since getDocument holds the data
+  SESSION.pdfs[file.name] = pdf; SESSION.pdfProjectId = APP.projectId;
 
   const pages = [];
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -1528,7 +1531,7 @@ async function processPdfForProject(file, statusEl) {
     const annotations = await page.getAnnotations();
     pages.push({ pdfPageNum: i, text, annotations, type: classifyPage(text) });
   }
-  // URL kept alive in SESSION — do NOT revoke here
+  URL.revokeObjectURL(url);
 
   const reports = []; let cur = null;
   for (const p of pages) {
@@ -1565,8 +1568,22 @@ async function processPdfForProject(file, statusEl) {
     rows.push(['', '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords]);
     narrative.push(trimNarrative(rep.narrativePages.map(p => p.text).join('\n\n')));
   }
+
+  // Scan page ranges to detect which rows have a diagram (text-free page)
+  const rowHasDiagram = new Array(rows.length).fill(false);
+  for (let ri = 0; ri < reportPages.length; ri++) {
+    const rng = reportPages[ri];
+    for (let p = rng.start; p <= rng.end; p++) {
+      try {
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+        if (tc.items.length === 0) { rowHasDiagram[ri] = true; break; }
+      } catch(e) {}
+    }
+  }
+
   statusEl.textContent = 'Done — ' + rows.length + ' entr' + (rows.length !== 1 ? 'ies' : 'y') + ' found.';
-  return { rows, narrative, reportPages };
+  return { rows, narrative, reportPages, rowHasDiagram };
 }
 
 // ── Legacy (Classic Mode) ─────────────────────────────────────────────────────
@@ -1740,5 +1757,18 @@ document.getElementById('linput').addEventListener('input', saveLegacyState);
 document.getElementById('lcoordInput').addEventListener('input', saveLegacyState);
 document.getElementById('lpageNum').addEventListener('input', saveLegacyState);
 </script>
+
+<!-- Fullscreen PDF overlay viewer -->
+<div id="pdfViewerOverlay" style="display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.92); flex-direction:column; align-items:center; justify-content:flex-start;">
+  <div id="pdfViewerBar" style="width:100%; display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border); flex-shrink:0;">
+    <button class="btn-sec" onclick="navigatePdfPage(-1)">◄ Prev</button>
+    <span id="pdfViewerPageLabel" style="font-size:13px; color:var(--muted); flex:1; text-align:center;"></span>
+    <button class="btn-sec" onclick="navigatePdfPage(1)">Next ►</button>
+    <button class="btn-sec" onclick="closePdfOverlay()" style="margin-left:12px;">✕ Close</button>
+  </div>
+  <div id="pdfViewerScroll" style="flex:1; overflow-y:auto; width:100%; display:flex; justify-content:center; padding:16px 8px;">
+    <canvas id="pdfViewerCanvas" style="max-width:95vw; display:block; border-radius:4px;"></canvas>
+  </div>
+</div>
 </body>
 </html>
