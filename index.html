@@ -289,7 +289,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         <table id="outTable">
           <thead>
             <tr>
-              <th>Intersection</th><th>At Int?</th><th>Date</th><th>DOW</th><th>Time</th>
+              <th>Intersection</th><th></th><th>Date</th><th>DOW</th><th>Time</th>
               <th>Collision Type</th><th>Wthr/Road</th>
               <th>Unit 1</th><th>Unit 2</th><th>Unit 3</th><th>Unit 4</th>
               <th>Injuries</th><th>Units</th><th>Notes</th>
@@ -400,7 +400,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         <table id="legacyTable">
           <thead>
             <tr>
-              <th>Intersection</th><th>At Int?</th><th>Date</th><th>DOW</th><th>Time</th>
+              <th>Intersection</th><th></th><th>Date</th><th>DOW</th><th>Time</th>
               <th>Collision Type</th><th>Wthr/Road</th>
               <th>Unit 1</th><th>Unit 2</th><th>Unit 3</th><th>Unit 4</th>
               <th>Injuries</th><th>Units</th><th>Notes</th>
@@ -667,7 +667,6 @@ function addPdfToProject() {
 // ── Table view ────────────────────────────────────────────────────────────────
 const VERIFY_FIELDS = [
   { key: 'intersection',   label: 'Intersection',    col: 0 },
-  { key: 'atIntersection', label: 'At Int?',          col: 1 },
   { key: 'collisionType',  label: 'Collision Type',   col: 5 },
   { key: 'u1',             label: 'Unit 1',           col: 7 },
   { key: 'u2',             label: 'Unit 2',           col: 8 },
@@ -881,9 +880,6 @@ function renderVerifyView() {
       if (isV) div.className = div.className.replace(' verify-field-unit','');
       const combo = buildEditableCombo(row[f.col] || '', getIntersectionOptions, { readOnly: isV, onChange: commitLive });
       ctrl = combo.input; div.appendChild(combo.wrap);
-    } else if (f.key === 'atIntersection') {
-      const combo = buildEditableCombo(row[f.col] || '', function() { return ['Y','N']; }, { narrow: true, readOnly: isV, onChange: commitLive });
-      ctrl = combo.input; div.className += ' verify-field-unit'; div.appendChild(combo.wrap);
     } else if (isUnit(f.key)) {
       const combo = buildEditableCombo(row[f.col] || '', function() { return ['NB','SB','WB','EB','N/A']; }, { narrow: true, readOnly: isV, onChange: commitLive });
       ctrl = combo.input; div.appendChild(combo.wrap);
@@ -1785,7 +1781,8 @@ async function processPdfForProject(file, statusEl) {
     const narrText = rep.narrativePages.map(p => p.text).join('\n\n');
     const { notes } = inferCollisionInfo(parsedUnits, { reportedType: r.type, narrative: narrText, mainText: rep.mainPage.text });
     const u = n => (parsedUnits.find(x => x.unitNum === n) || {}).overrideDir || '';
-    rows.push([r.parsedIntersection || '', r.atIntersection || '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords]);
+    const intCell = r.parsedIntersection || (r.atIntersection === 'Y' ? 'Y' : 'N');
+    rows.push([intCell, '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords]);
     narrative.push(trimNarrative(rep.narrativePages.map(p => p.text).join('\n\n')));
   }
 
