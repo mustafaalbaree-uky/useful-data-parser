@@ -797,6 +797,90 @@ function clearTable() {
 }
 
 // ── Verify view ───────────────────────────────────────────────────────────────
+// Builds a single verify-field row element for field f at entry index i.
+// Used both for the full render and for in-place updates on verify/unverify
+// (so we don't rebuild the whole view and lose scroll position).
+function buildVerifyFieldEl(f, i) {
+  const proj = getActiveProject();
+  const row = proj.rows[i];
+  const v = (proj.verified || {})[i] || {};
+  const isUnit = function(key) { return key === 'u1' || key === 'u2' || key === 'u3' || key === 'u4'; };
+  const isV = !!v[f.key];
+  const div = document.createElement('div');
+  div.className = 'verify-field ' + (isV ? 'verified' : 'unverified');
+  if (isUnit(f.key)) div.className += ' verify-field-unit';
+  if (f.key === 'notes') div.className += ' verify-field-notes';
+
+  const lbl = document.createElement('div'); lbl.className = 'verify-field-label'; lbl.textContent = f.label;
+  div.appendChild(lbl);
+
+  let ctrl; // element whose .value holds the current text
+  const commitLive = function(val) {
+    const p = getActiveProject(); if (!p) return;
+    p.rows[APP.verifyIndex][f.col] = val;
+    updateProject(p);
+  };
+  if (f.key === 'intersection') {
+    if (isV) div.className = div.className.replace(' verify-field-unit','');
+    const combo = buildEditableCombo(row[f.col] || '', getIntersectionOptions, { readOnly: isV, onChange: commitLive });
+    ctrl = combo.input; div.appendChild(combo.wrap);
+  } else if (isUnit(f.key)) {
+    const combo = buildEditableCombo(row[f.col] || '', function() { return ['NB','SB','WB','EB','N/A']; }, { narrow: true, readOnly: isV, onChange: commitLive });
+    ctrl = combo.input; div.appendChild(combo.wrap);
+  } else if (f.key === 'collisionType') {
+    const combo = buildEditableCombo(row[f.col] || '', getCollisionTypeOptions, { readOnly: isV, onChange: commitLive });
+    ctrl = combo.input; div.appendChild(combo.wrap);
+  } else if (f.key === 'notes') {
+    const ta = document.createElement('textarea'); ta.className = 'verify-field-notes-input';
+    ta.value = row[f.col] || ''; ta.readOnly = isV;
+    ta.oninput = function() { commitLive(ta.value); };
+    ctrl = ta; div.appendChild(ta);
+  } else {
+    const inp = document.createElement('input'); inp.className = 'verify-field-val'; inp.type = 'text';
+    inp.value = row[f.col] || ''; inp.readOnly = isV;
+    inp.oninput = function() { commitLive(inp.value); };
+    ctrl = inp; div.appendChild(inp);
+  }
+
+  if (isV) {
+    const chk = document.createElement('span'); chk.className = 'verify-check'; chk.textContent = '✓';
+    const editBtn = document.createElement('button'); editBtn.className = 'verify-edit-btn'; editBtn.textContent = 'Edit';
+    editBtn.onclick = function() { unverifyField(f.key); };
+    div.appendChild(chk); div.appendChild(editBtn);
+  } else {
+    const vBtn = document.createElement('button'); vBtn.className = 'verify-btn'; vBtn.textContent = 'Verify';
+    vBtn.onclick = function() { verifyField(f.key, f.col, ctrl.value); };
+    div.appendChild(vBtn);
+  }
+  return div;
+}
+
+// Re-render only one field row in place + refresh the progress bar, avoiding a
+// full view rebuild (which scrolls the page back to the top).
+function refreshVerifyField(fieldKey) {
+  const fieldsEl = document.getElementById('verifyFields');
+  if (!fieldsEl) { renderVerifyView(); return; }
+  const idx = VERIFY_FIELDS.findIndex(function(f) { return f.key === fieldKey; });
+  if (idx < 0 || !fieldsEl.children[idx]) { renderVerifyView(); return; }
+  const fresh = buildVerifyFieldEl(VERIFY_FIELDS[idx], APP.verifyIndex);
+  fieldsEl.replaceChild(fresh, fieldsEl.children[idx]);
+  updateVerifyProgress();
+}
+
+function updateVerifyProgress() {
+  const proj = getActiveProject();
+  if (!proj || !proj.rows.length) return;
+  const verified = proj.verified || {};
+  const total = proj.rows.length;
+  let verifiedCount = 0;
+  for (let ri = 0; ri < total; ri++) { if (isRowVerified(verified, ri)) verifiedCount++; }
+  const pct = Math.round(verifiedCount / total * 100);
+  const bar = document.getElementById('verifyProgressBar');
+  const lbl = document.getElementById('verifyPctLabel');
+  if (bar) bar.style.width = pct + '%';
+  if (lbl) lbl.textContent = pct + '% verified';
+}
+
 function renderVerifyView() {
   const _scrollEl = document.scrollingElement || document.documentElement;
   const _scrollY = _scrollEl.scrollTop;
@@ -859,58 +943,8 @@ function renderVerifyView() {
   // verify fields
   const fieldsEl = document.getElementById('verifyFields');
   fieldsEl.innerHTML = '';
-  const v = verified[i] || {};
-  const isUnit = function(key) { return key === 'u1' || key === 'u2' || key === 'u3' || key === 'u4'; };
   VERIFY_FIELDS.forEach(function(f) {
-    const isV = !!v[f.key];
-    const div = document.createElement('div');
-    div.className = 'verify-field ' + (isV ? 'verified' : 'unverified');
-    if (isUnit(f.key)) div.className += ' verify-field-unit';
-    if (f.key === 'notes') div.className += ' verify-field-notes';
-
-    const lbl = document.createElement('div'); lbl.className = 'verify-field-label'; lbl.textContent = f.label;
-    div.appendChild(lbl);
-
-    // Build the value control depending on field type
-    let ctrl; // element whose .value holds the current text
-    const commitLive = function(val) {
-      const p = getActiveProject(); if (!p) return;
-      p.rows[APP.verifyIndex][f.col] = val;
-      updateProject(p);
-    };
-    if (f.key === 'intersection') {
-      if (isV) div.className = div.className.replace(' verify-field-unit','');
-      const combo = buildEditableCombo(row[f.col] || '', getIntersectionOptions, { readOnly: isV, onChange: commitLive });
-      ctrl = combo.input; div.appendChild(combo.wrap);
-    } else if (isUnit(f.key)) {
-      const combo = buildEditableCombo(row[f.col] || '', function() { return ['NB','SB','WB','EB','N/A']; }, { narrow: true, readOnly: isV, onChange: commitLive });
-      ctrl = combo.input; div.appendChild(combo.wrap);
-    } else if (f.key === 'collisionType') {
-      const combo = buildEditableCombo(row[f.col] || '', getCollisionTypeOptions, { readOnly: isV, onChange: commitLive });
-      ctrl = combo.input; div.appendChild(combo.wrap);
-    } else if (f.key === 'notes') {
-      const ta = document.createElement('textarea'); ta.className = 'verify-field-notes-input';
-      ta.value = row[f.col] || ''; ta.readOnly = isV;
-      ta.oninput = function() { commitLive(ta.value); };
-      ctrl = ta; div.appendChild(ta);
-    } else {
-      const inp = document.createElement('input'); inp.className = 'verify-field-val'; inp.type = 'text';
-      inp.value = row[f.col] || ''; inp.readOnly = isV;
-      inp.oninput = function() { commitLive(inp.value); };
-      ctrl = inp; div.appendChild(inp);
-    }
-
-    if (isV) {
-      const chk = document.createElement('span'); chk.className = 'verify-check'; chk.textContent = '✓';
-      const editBtn = document.createElement('button'); editBtn.className = 'verify-edit-btn'; editBtn.textContent = 'Edit';
-      editBtn.onclick = function() { unverifyField(f.key); };
-      div.appendChild(chk); div.appendChild(editBtn);
-    } else {
-      const vBtn = document.createElement('button'); vBtn.className = 'verify-btn'; vBtn.textContent = 'Verify';
-      vBtn.onclick = function() { verifyField(f.key, f.col, ctrl.value); };
-      div.appendChild(vBtn);
-    }
-    fieldsEl.appendChild(div);
+    fieldsEl.appendChild(buildVerifyFieldEl(f, i));
   });
 
   // narrative
@@ -1080,7 +1114,7 @@ function verifyField(fieldKey, col, newValue) {
   proj.verified[i][fieldKey] = true;
   proj.rows[i][col] = newValue;
   updateProject(proj);
-  renderVerifyView();
+  refreshVerifyField(fieldKey);
 }
 
 function unverifyField(fieldKey) {
@@ -1089,7 +1123,7 @@ function unverifyField(fieldKey) {
   const i = APP.verifyIndex;
   if (proj.verified && proj.verified[i]) proj.verified[i][fieldKey] = false;
   updateProject(proj);
-  renderVerifyView();
+  refreshVerifyField(fieldKey);
 }
 
 function navigateVerify(delta) {
