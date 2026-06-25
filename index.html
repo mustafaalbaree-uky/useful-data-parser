@@ -2373,7 +2373,19 @@ function expBuildSystemPrompt() {
     '- collisionType: EXACTLY one item from this list: ' + vocab + '. No new types; pick the closest.',
     '- intersection: just the cross-streets / location, e.g. "N BROADWAY & W 7TH ST". No extra prose.',
     '- notes: ONE short, terse, fault-oriented sentence (max ~20 words). e.g. "U1 failed to yield to U2".',
-    '    Good note: "U1 ran red light, struck U2". Bad note: a long multi-clause dump of every detail.'
+    '    Good note: "U1 ran red light, struck U2". Bad note: a long multi-clause dump of every detail.',
+    '',
+    'COLLISION GEOMETRY (physically sound inferences you MAY use — the collision type is a known fact):',
+    '- Rear-end: the striking and struck vehicles travel the SAME direction. In a chain (U1 rear-ends U2,',
+    '  U2 into U3), ALL units in that chain share ONE travel direction.',
+    '- Head-on: the two units travel OPPOSITE directions.',
+    '- Same-direction sideswipe: SAME direction. Angle/broadside: the units are on intersecting (perpendicular) approaches.',
+    'Use these to PROPAGATE a direction: if ANY one unit in the group has a direction you can establish (from an',
+    'explicit stated travel direction OR a defined roadway convention), assign the geometry-consistent direction',
+    'to the other involved units, and say so in reasoning (e.g. "rear-end ⇒ U1 same direction as U2 = SB").',
+    'Do NOT infer a compass direction from incidental geography — which way a landmark, crosswalk, university, or',
+    'building lies is NOT evidence of travel direction. Anchor ONLY on an explicitly stated direction or a defined',
+    'convention. If no unit in the group can be anchored, set them ALL to "unknown" (consistently) — never guess.'
   ].concat(convLines).concat([
     '',
     'Respond with JSON ONLY, no prose outside it, in exactly this shape:',
