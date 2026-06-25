@@ -137,6 +137,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 .verify-info-label-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .gps-copy-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; padding: 1px 6px; border-radius: 4px; cursor: pointer; line-height: 1.4; flex-shrink: 0; }
 .gps-copy-btn:hover { color: var(--text); background: var(--border); }
+.gps-btn-group { display: flex; gap: 4px; flex-shrink: 0; }
 .verify-fields { display: flex; flex-direction: column; gap: 7px; }
 .verify-field { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
 .verify-field.unverified { border-color: var(--accent2); background: rgba(91,157,255,0.05); box-shadow: 0 0 0 3px rgba(91,157,255,0.18); }
@@ -968,7 +969,15 @@ function renderVerifyView() {
           setTimeout(function(){ copyBtn.textContent = old; }, 1200);
         }).catch(function(){});
       };
-      lbl.appendChild(txt); lbl.appendChild(copyBtn);
+      const mapBtn = document.createElement('button'); mapBtn.className = 'gps-copy-btn'; mapBtn.type = 'button';
+      mapBtn.textContent = 'Maps'; mapBtn.title = 'Open GPS in Google Maps';
+      mapBtn.onclick = function() {
+        const val = inp.value.trim(); if (!val) return;
+        window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(val), '_blank', 'noopener');
+      };
+      const btnGroup = document.createElement('span'); btnGroup.className = 'gps-btn-group';
+      btnGroup.appendChild(copyBtn); btnGroup.appendChild(mapBtn);
+      lbl.appendChild(txt); lbl.appendChild(btnGroup);
     } else {
       lbl.textContent = f.label;
     }
