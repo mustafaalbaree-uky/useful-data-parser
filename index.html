@@ -101,12 +101,14 @@ table { border-collapse: collapse; width: 100%; font-size: 12px; }
 th, td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; white-space: nowrap; }
 th { background: var(--panel2); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
 tr:nth-child(even) td { background: var(--panel2); }
-td.copy-cell { border-left: none; padding: 4px 8px; }
+td.copy-cell { border-left: none; padding: 4px 8px; white-space: nowrap; display: flex; gap: 6px; }
 th.copy-col { border-left: none; width: 1px; }
 .empty { color: var(--muted); font-style: italic; padding: 16px; text-align: center; font-size: 13px; }
 .secondary-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .row-copy { background: var(--panel2); border: 1px solid var(--border); padding: 3px 10px; font-size: 11px; font-weight: 500; border-radius: 5px; color: var(--muted); cursor: pointer; }
 .row-copy:hover { background: var(--border); color: var(--text); }
+.row-del { background: var(--panel2); border: 1px solid var(--border); padding: 3px 10px; font-size: 11px; font-weight: 500; border-radius: 5px; color: var(--muted); cursor: pointer; }
+.row-del:hover { background: #e05c5c; color: #fff; border-color: #e05c5c; }
 tr.unverified-row td:first-child { border-left: 3px solid var(--accent2); }
 tr.table-row { cursor: pointer; }
 tr.table-row:hover td { background: rgba(91,157,255,0.18) !important; }
@@ -722,9 +724,11 @@ function renderRows(rows, verified) {
     const copyTd = document.createElement('td'); copyTd.className = 'copy-cell';
     const btn = document.createElement('button'); btn.className = 'row-copy'; btn.textContent = 'Copy';
     btn.onclick = function(e) { e.stopPropagation(); copyRowEl(btn); };
-    copyTd.appendChild(btn); tr.appendChild(copyTd);
+    const delBtn = document.createElement('button'); delBtn.className = 'row-del'; delBtn.textContent = 'Delete';
+    delBtn.onclick = function(e) { e.stopPropagation(); deleteRowAt(i); };
+    copyTd.appendChild(btn); copyTd.appendChild(delBtn); tr.appendChild(copyTd);
     tr.onclick = function(e) {
-      if (e.target.closest('.row-copy')) return;
+      if (e.target.closest('.row-copy') || e.target.closest('.row-del')) return;
       APP.verifyIndex = i;
       showScreen('verify', { index: i });
     };
@@ -744,6 +748,30 @@ function copyRowEl(btn) {
   navigator.clipboard.writeText(vals.join('\t'));
   const orig = btn.textContent; btn.textContent = 'Copied!';
   setTimeout(function() { btn.textContent = orig; }, 1200);
+}
+
+function deleteRowAt(i) {
+  const proj = getActiveProject(); if (!proj) return;
+  if (!confirm('Delete this row? This cannot be undone.')) return;
+  // Remove from all parallel arrays
+  proj.rows.splice(i, 1);
+  if (Array.isArray(proj.narrative)) proj.narrative.splice(i, 1);
+  if (Array.isArray(proj.reportPages)) proj.reportPages.splice(i, 1);
+  if (Array.isArray(proj.rowSources)) proj.rowSources.splice(i, 1);
+  if (Array.isArray(proj.rowHasDiagram)) proj.rowHasDiagram.splice(i, 1);
+  // Re-key the index-based verified map: drop i, shift everything above down by 1
+  if (proj.verified) {
+    const reKeyed = {};
+    Object.keys(proj.verified).forEach(function(k) {
+      const idx = parseInt(k, 10);
+      if (idx < i) reKeyed[idx] = proj.verified[k];
+      else if (idx > i) reKeyed[idx - 1] = proj.verified[k];
+    });
+    proj.verified = reKeyed;
+  }
+  updateProject(proj);
+  if (APP.verifyIndex > i) APP.verifyIndex--;
+  renderTableView();
 }
 
 function toggleManualEntry() {
@@ -1311,52 +1339,48 @@ function parseReport(raw) {
   if (weather || road) r.weatherRoad = [weather, road].filter(Boolean).join('/');
 
   // ── Intersection / location parsing ──────────────────────────────────────────
-  // Extract PARKING LOT and BETWEEN STREETS flags from the text
-  const locM = text.match(/PARKING\s+LOT\s*:\s*([YN])\s+BETWEEN\s+STREETS\s*:\s*([YN]{1,2})/i);
-  const parkingLot = locM ? locM[1].toUpperCase() : 'N';
-  const betweenCode = locM ? locM[2].toUpperCase() : '';  // e.g. "NY", "YN", "NN"
-
-  // Decide at-intersection flag: Y/N, or '?' if ambiguous
-  // parkingLot=Y  → not a street intersection → N
-  // betweenCode=NN → mid-block, no intersection info → N
-  // betweenCode has any Y → some kind of intersection → Y
-  let atIntersection;
-  if (parkingLot === 'Y') {
-    atIntersection = 'N';
-  } else if (!betweenCode || betweenCode === 'NN') {
-    atIntersection = 'N';
-  } else {
-    atIntersection = 'Y'; // NY = at named cross street; YN = between two streets
-  }
+  // The KSP form exposes three separate Y/N flags in the location header line:
+  //   PARKING LOT:  /  INTERSECTION WITH:  /  BETWEEN STREETS:
+  const plM = text.match(/PARKING\s+LOT\s*:\s*([YN])/i);
+  const iwM = text.match(/INTERSECTION\s+WITH\s*:\s*([YN])/i);
+  const bsM = text.match(/BETWEEN\s+STREETS\s*:\s*([YN])/i);
+  const parkingLot = plM ? plM[1].toUpperCase() : 'N';
+  const intersectionWith = iwM ? iwM[1].toUpperCase() : 'N';
+  const betweenStreets = bsM ? bsM[1].toUpperCase() : 'N';
+  // At an intersection if the officer flagged either "intersection with" or
+  // "between streets". Otherwise it's mid-block / a parking lot → N.
+  const atIntersection = (intersectionWith === 'Y' || betweenStreets === 'Y') ? 'Y' : 'N';
   r.atIntersection = atIntersection;
 
-  // Parse the roadway-name block (between "ROADWAY #" label and "COLLISION DATE")
-  const roadBlockM = text.match(/ROADWAY\s+#\n([\s\S]*?)(?:COLLISION DATE|MILEPOINT)/i);
+  // The roadway value sits on the line(s) immediately after "ROADWAY NAME".
+  const cleanRoad = function(s) {
+    return String(s || '').replace(/\bUS\d+\b/gi, '').replace(/\b[A-Z]{2,}\d+\b/g, '')
+      .replace(/[-–]/g, ' ').replace(/\s+/g, ' ').trim();
+  };
   let parsedIntersection = '';
-  if (roadBlockM && atIntersection === 'Y') {
-    const block = roadBlockM[1].trim();
-    if (/1st STREET\s*:/i.test(block)) {
-      // YN case: "MAIN_ROAD 1st STREET: CROSS1\n2nd STREET: CROSS2"
-      const m = block.match(/^([^\n]+?)\s+1st STREET\s*:\s*([^\n]+)(?:\n2nd STREET\s*:\s*([^\n]+))?/im);
-      if (m) {
-        const main = m[1].replace(/\bUS\d+\b/g,'').replace(/-/g,' ').trim();
-        const c1 = m[2].trim();
-        const c2 = m[3] ? m[3].trim() : '';
-        parsedIntersection = main + (c2 ? ' between ' + c1 + ' & ' + c2 : ' & ' + c1);
+  if (atIntersection === 'Y') {
+    const rnIdx = lines.findIndex(l => /ROADWAY\s+NAME/i.test(l));
+    const valueLines = [];
+    if (rnIdx !== -1) {
+      for (let k = rnIdx + 1; k < lines.length && k < rnIdx + 4; k++) {
+        if (/ROADWAY\s+#|DISTANCE FROM MILEPOINT|COLLISION DATE/i.test(lines[k])) break;
+        if (lines[k].trim()) valueLines.push(lines[k].trim());
       }
-    } else {
-      // NY case: "CROSS_STREET ROUTE_NUM-MAIN_ROAD" on one line
-      //    e.g. "W 6TH ST US0027-N BROADWAY"
-      //    or two-line: "N BROADWAY\nUS0027\nFrontage Rd"
-      const firstLine = block.split('\n')[0].replace(/\*/g,' ').trim();
-      const mRoute = firstLine.match(/^(.+?)\s+[A-Z]+\d+[-–](.+)$/);
-      if (mRoute) {
-        const cross = mRoute[1].trim();
-        const main = mRoute[2].replace(/[–-]/g,' ').trim();
-        parsedIntersection = main + ' & ' + cross;
+    }
+    const joined = valueLines.join(' ');
+    if (joined) {
+      if (/1st STREET\s*:/i.test(joined)) {
+        // "MAIN_ROAD 1st STREET: CROSS1 2nd STREET: CROSS2"
+        const m = joined.match(/^(.+?)\s+1st STREET\s*:\s*(.+?)(?:\s+2nd STREET\s*:\s*(.+))?$/i);
+        if (m) {
+          const main = cleanRoad(m[1]); const c1 = m[2].trim(); const c2 = m[3] ? m[3].trim() : '';
+          parsedIntersection = main + (c2 ? ' between ' + c1 + ' & ' + c2 : ' & ' + c1);
+        }
       } else {
-        // No route number separator — use what we have
-        parsedIntersection = firstLine.replace(/\b[A-Z]+\d+\b/g,'').replace(/\s+/g,' ').trim();
+        // "CROSS_STREET ROUTE_NUM-MAIN_ROAD"  e.g. "W 6TH ST US0027-N BROADWAY"
+        const m = joined.match(/^(.+?)\s+[A-Z]{2,}\d+[-–]\s*(.+)$/);
+        if (m) parsedIntersection = cleanRoad(m[2]) + ' & ' + cleanRoad(m[1]);
+        else parsedIntersection = cleanRoad(joined);
       }
     }
   }
