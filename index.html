@@ -194,6 +194,37 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 /* legacy screen */
 .legacy-body { padding: 24px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 .legacy-entry-inner { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Experimental AI Verify mode (toggle-gated) ─────────────────────────────── */
+body.experimental-on .topbar-title::after { content: ' • EXPERIMENTAL'; color: var(--accent2); font-size: 11px; letter-spacing: .5px; font-weight: 600; }
+.exp-panel { margin-top: 14px; border: 1px solid var(--accent2); border-radius: 10px; padding: 12px; background: rgba(91,157,255,0.06); display: flex; flex-direction: column; gap: 10px; }
+.exp-head { display: flex; align-items: center; justify-content: space-between; }
+.exp-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.exp-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #fff; background: var(--accent2); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+.exp-key-wrap { display: flex; }
+.exp-key-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; color: var(--text); font-family: inherit; outline: none; }
+.exp-analyze-btn { align-self: flex-start; background: var(--accent2); color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.exp-analyze-btn:disabled { opacity: .6; cursor: default; }
+.exp-results { display: flex; flex-direction: column; gap: 8px; }
+.exp-note { font-size: 12px; color: var(--muted); padding: 4px 0; }
+.exp-note.exp-error { color: #ff6b6b; }
+.exp-note.exp-ok { color: #4caf78; font-weight: 600; }
+.exp-suggestion { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--panel); display: flex; flex-direction: column; gap: 6px; }
+.exp-suggestion.exp-accepted { opacity: .6; }
+.exp-sugg-top { display: flex; align-items: center; justify-content: space-between; }
+.exp-sugg-field { font-size: 12px; font-weight: 600; color: var(--text); }
+.exp-confidence { font-size: 11px; color: var(--muted); background: var(--bg); border-radius: 6px; padding: 1px 7px; }
+.exp-sugg-value { font-size: 13px; color: var(--text); }
+.exp-cur { color: var(--muted); text-decoration: line-through; }
+.exp-new { color: var(--accent2); font-weight: 600; }
+.exp-sugg-reason { font-size: 12px; color: var(--muted); }
+.exp-sugg-quote { font-size: 12px; font-style: italic; color: var(--text); opacity: .8; border-left: 2px solid var(--accent2); padding-left: 8px; }
+.exp-accept { align-self: flex-start; background: transparent; color: var(--accent2); border: 1px solid var(--accent2); border-radius: 7px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.exp-accept:disabled { color: var(--muted); border-color: var(--border); cursor: default; }
+.exp-accept-all { align-self: flex-start; background: var(--accent2); color: #fff; border: none; border-radius: 7px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.exp-accept-all:disabled { opacity: .5; cursor: default; }
+.exp-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--accent2); color: #fff; padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 3000; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+.exp-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -450,7 +481,7 @@ const LS_PROJECTS = 'dp_projects_v1';
 const LS_LEGACY = 'dp_legacy_v1';
 const COL_COUNT = 16;
 
-const APP = { projectId: null, verifyIndex: 0 };
+const APP = { projectId: null, verifyIndex: 0, experimental: false };
 const SESSION = { pdfs: {}, pdfProjectId: null, pdfViewerStart: 0, pdfViewerEnd: 0, pdfViewerZoom: 1.3 };
 
 // ── Project store ─────────────────────────────────────────────────────────────
@@ -959,6 +990,9 @@ function renderVerifyView() {
 
   // Auto-render the detected diagram page under supporting text
   renderDiagramForEntry();
+
+  // Experimental AI Verify panel (no-op unless experimental mode is on)
+  expRenderPanel();
 
   // Restore scroll position so verifying a field doesn't jump the page
   _scrollEl.scrollTop = _scrollY;
@@ -2001,9 +2035,19 @@ function toggleTheme() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener('load', function() {
   if (localStorage.getItem('dp_theme') === 'light') applyTheme('light');
+  APP.experimental = localStorage.getItem('dp_experimental') === '1';
+  if (APP.experimental) document.body.classList.add('experimental-on');
   loadFormState();
   loadLegacyState();
   showScreen('menu');
+});
+
+// Ctrl+Shift+U toggles experimental AI Verify mode (see exp* block below).
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'U' || e.key === 'u')) {
+    e.preventDefault();
+    expToggle();
+  }
 });
 
 document.getElementById('input').addEventListener('input', saveFormState);
@@ -2012,6 +2056,291 @@ document.getElementById('pageNum').addEventListener('input', saveFormState);
 document.getElementById('linput').addEventListener('input', saveLegacyState);
 document.getElementById('lcoordInput').addEventListener('input', saveLegacyState);
 document.getElementById('lpageNum').addEventListener('input', saveLegacyState);
+
+/* ════════════════════════════════════════════════════════════════════════════
+   EXPERIMENTAL — AI Verify mode (Round 10)
+   Fully isolated, toggle-gated layer. When APP.experimental is false, none of
+   this renders or runs (the only hook in the classic flow is expRenderPanel(),
+   which returns immediately when off). Toggle with Ctrl+Shift+U.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const EXP = { model: 'claude-haiku-4-5', busy: false };
+
+function expToggle() {
+  APP.experimental = !APP.experimental;
+  localStorage.setItem('dp_experimental', APP.experimental ? '1' : '0');
+  document.body.classList.toggle('experimental-on', APP.experimental);
+  expToast('Experimental AI mode ' + (APP.experimental ? 'ON' : 'OFF'));
+  // Refresh the panel if we're on the verify screen.
+  const vs = document.getElementById('screen-verify');
+  if (vs && vs.classList.contains('active')) expRenderPanel();
+  else if (!APP.experimental) { const p = document.getElementById('expPanel'); if (p) p.style.display = 'none'; }
+}
+
+function expToast(msg) {
+  let t = document.getElementById('expToast');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'expToast'; t.className = 'exp-toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.classList.remove('show'); }, 1800);
+}
+
+// Builds/refreshes the AI Verify panel inside the verify-right column.
+function expRenderPanel() {
+  const host = document.querySelector('#screen-verify .verify-right');
+  if (!host) return;
+  let panel = document.getElementById('expPanel');
+  if (!APP.experimental) { if (panel) panel.style.display = 'none'; return; }
+
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'expPanel'; panel.className = 'exp-panel';
+    host.appendChild(panel);
+  }
+  panel.style.display = '';
+  panel.innerHTML = '';
+
+  const head = document.createElement('div'); head.className = 'exp-head';
+  head.innerHTML = '<span class="exp-title">✨ AI Verify <span class="exp-tag">experimental</span></span>';
+  panel.appendChild(head);
+
+  // API key field (persisted to localStorage)
+  const keyWrap = document.createElement('div'); keyWrap.className = 'exp-key-wrap';
+  const keyInp = document.createElement('input');
+  keyInp.type = 'password'; keyInp.className = 'exp-key-input';
+  keyInp.placeholder = 'Anthropic API key (sk-ant-…)';
+  keyInp.value = localStorage.getItem('dp_anthropic_key') || '';
+  keyInp.oninput = function() { localStorage.setItem('dp_anthropic_key', keyInp.value.trim()); };
+  keyWrap.appendChild(keyInp);
+  panel.appendChild(keyWrap);
+
+  const btn = document.createElement('button');
+  btn.className = 'exp-analyze-btn';
+  btn.textContent = EXP.busy ? 'Analyzing…' : 'Analyze this entry';
+  btn.disabled = EXP.busy;
+  btn.onclick = function() { expCallClaude(APP.verifyIndex); };
+  panel.appendChild(btn);
+
+  const results = document.createElement('div');
+  results.id = 'expResults'; results.className = 'exp-results';
+  panel.appendChild(results);
+}
+
+function expResultsEl() {
+  const r = document.getElementById('expResults');
+  if (r) r.innerHTML = '';
+  return r;
+}
+
+function expMsg(text, cls) {
+  const r = expResultsEl(); if (!r) return;
+  const d = document.createElement('div'); d.className = 'exp-note ' + (cls || ''); d.textContent = text;
+  r.appendChild(d);
+}
+
+// Field metadata for mapping AI suggestions → row columns + classic refresh.
+const EXP_FIELD_COLS = { collisionType: 5, u1: 7, u2: 8, u3: 9, u4: 10, notes: 13 };
+
+async function expCallClaude(i) {
+  const key = (localStorage.getItem('dp_anthropic_key') || '').trim();
+  if (!key) { expMsg('Enter your Anthropic API key first.', 'exp-error'); return; }
+  const proj = getActiveProject(); if (!proj) return;
+  const row = proj.rows[i]; if (!row) return;
+  const narrative = ((proj.narrative || [])[i] || '').trim();
+  if (!narrative) { expMsg('No supporting narrative for this entry to analyze.', 'exp-error'); return; }
+
+  EXP.busy = true; expRenderPanel();
+  expMsg('Contacting Claude…', '');
+
+  const system = expBuildSystemPrompt();
+  const user = expBuildUserMessage(row, narrative);
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: EXP.model,
+        max_tokens: 500,
+        temperature: 0,
+        system: system,
+        messages: [{ role: 'user', content: user }]
+      })
+    });
+    if (!resp.ok) {
+      let detail = ''; try { const j = await resp.json(); detail = (j.error && j.error.message) || ''; } catch(e) {}
+      EXP.busy = false; expRenderPanel();
+      expMsg('API error ' + resp.status + (detail ? ': ' + detail : ''), 'exp-error');
+      return;
+    }
+    const data = await resp.json();
+    const text = (data.content || []).map(function(b) { return b.text || ''; }).join('');
+    const parsed = expExtractJson(text);
+    EXP.busy = false; expRenderPanel();
+    if (!parsed) { expMsg('Could not parse a suggestion from the model response.', 'exp-error'); return; }
+    expRenderSuggestions(i, parsed);
+  } catch (err) {
+    EXP.busy = false; expRenderPanel();
+    expMsg('Request failed: ' + (err && err.message ? err.message : String(err)), 'exp-error');
+  }
+}
+
+function expBuildSystemPrompt() {
+  const types = getCollisionTypeOptions();
+  const standard = ['Rear-end','Angle','Head-on','Sideswipe','Opposing Left Turn','Backing','Single Vehicle'];
+  const vocab = Array.from(new Set(standard.concat(types))).join(', ');
+  return [
+    'You are a crash-report verification assistant for a traffic-records analyst.',
+    'You are given an officer\'s free-text narrative plus fields a parser already extracted.',
+    'Your job is ONLY to catch where the parsed fields disagree with the narrative and propose corrections.',
+    '',
+    'Hard rules:',
+    '- Use ONLY facts stated in the narrative. If the narrative does not support a field, OMIT it.',
+    '- Do NOT echo or restate the parser when it is already correct. Suggest a field only when it both',
+    '  (a) is supported by the narrative AND (b) differs from the current parsed value.',
+    '- Never invent unit numbers, directions, or causes that are not in the narrative.',
+    '- For every suggestion you MUST include a verbatim quote span from the narrative that justifies it.',
+    '',
+    'Collision type vocabulary (prefer these): ' + vocab + '.',
+    'Direction codes: NB, SB, EB, WB, or N/A.',
+    'Notes style: terse and fault-oriented, e.g. "U1 failed to yield to U2" or "U2 rear-ended U1".',
+    'Good note: "U1 ran red light, struck U2". Bad note: "Unit one was driving and then there was a collision with the other vehicle".',
+    '',
+    'Respond with JSON ONLY, no prose outside it, in exactly this shape (omit any key you have no change for):',
+    '{',
+    '  "collisionType": "<type>",',
+    '  "units": { "u1": "<dir>", "u2": "<dir>", "u3": "<dir>", "u4": "<dir>" },',
+    '  "notes": "<note>",',
+    '  "perField": { "<fieldKey>": { "reasoning": "<short>", "quote": "<verbatim>", "confidence": 0.0 } }',
+    '}',
+    'fieldKey is one of: collisionType, u1, u2, u3, u4, notes.',
+    'If the parse already matches the narrative, return {} (empty object).'
+  ].join('\n');
+}
+
+function expBuildUserMessage(row, narrative) {
+  const fields = [
+    'Intersection: ' + (row[0] || '(none)'),
+    'Collision type (parsed): ' + (row[5] || '(none)'),
+    'Unit 1 direction (parsed): ' + (row[7] || '(none)'),
+    'Unit 2 direction (parsed): ' + (row[8] || '(none)'),
+    'Unit 3 direction (parsed): ' + (row[9] || '(none)'),
+    'Unit 4 direction (parsed): ' + (row[10] || '(none)'),
+    'Unit count: ' + (row[12] || '(none)'),
+    'Notes (deterministic guess): ' + (row[13] || '(none)')
+  ].join('\n');
+  return 'OFFICER NARRATIVE:\n' + narrative + '\n\nPARSED FIELDS:\n' + fields +
+    '\n\nReturn JSON-only suggestions per the rules.';
+}
+
+// Tolerant extraction of the first balanced {...} block.
+function expExtractJson(text) {
+  if (!text) return null;
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let k = start; k < text.length; k++) {
+    const c = text[k];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+    } else {
+      if (c === '"') inStr = true;
+      else if (c === '{') depth++;
+      else if (c === '}') { depth--; if (depth === 0) {
+        try { return JSON.parse(text.slice(start, k + 1)); } catch(e) { return null; }
+      } }
+    }
+  }
+  return null;
+}
+
+function expRenderSuggestions(i, parsed) {
+  const r = expResultsEl(); if (!r) return;
+  const perField = parsed.perField || {};
+  // Flatten into a list of { key, value }
+  const items = [];
+  if (parsed.collisionType) items.push({ key: 'collisionType', value: parsed.collisionType });
+  if (parsed.units) ['u1','u2','u3','u4'].forEach(function(u) {
+    if (parsed.units[u]) items.push({ key: u, value: parsed.units[u] });
+  });
+  if (typeof parsed.notes === 'string' && parsed.notes.trim()) items.push({ key: 'notes', value: parsed.notes.trim() });
+
+  if (!items.length) {
+    const ok = document.createElement('div'); ok.className = 'exp-note exp-ok';
+    ok.textContent = '✓ No changes suggested — the parse matches the narrative.';
+    r.appendChild(ok);
+    return;
+  }
+
+  items.forEach(function(it) {
+    const meta = perField[it.key] || {};
+    const card = document.createElement('div'); card.className = 'exp-suggestion';
+
+    const top = document.createElement('div'); top.className = 'exp-sugg-top';
+    const label = document.createElement('span'); label.className = 'exp-sugg-field';
+    label.textContent = expFieldLabel(it.key);
+    const conf = document.createElement('span'); conf.className = 'exp-confidence';
+    const c = typeof meta.confidence === 'number' ? Math.round(meta.confidence * 100) : null;
+    conf.textContent = c !== null ? c + '%' : '';
+    top.appendChild(label); if (c !== null) top.appendChild(conf);
+    card.appendChild(top);
+
+    const val = document.createElement('div'); val.className = 'exp-sugg-value';
+    const cur = (getActiveProject().rows[i][EXP_FIELD_COLS[it.key]] || '(none)');
+    val.innerHTML = '<span class="exp-cur">' + expEsc(cur) + '</span> → <span class="exp-new">' + expEsc(it.value) + '</span>';
+    card.appendChild(val);
+
+    if (meta.reasoning) { const rsn = document.createElement('div'); rsn.className = 'exp-sugg-reason'; rsn.textContent = meta.reasoning; card.appendChild(rsn); }
+    if (meta.quote) { const q = document.createElement('div'); q.className = 'exp-sugg-quote'; q.textContent = '“' + meta.quote + '”'; card.appendChild(q); }
+
+    const accept = document.createElement('button'); accept.className = 'exp-accept';
+    accept.textContent = 'Accept';
+    accept.onclick = function() { expApplySuggestion(i, it.key, it.value); card.classList.add('exp-accepted'); accept.textContent = '✓ Accepted'; accept.disabled = true; };
+    card.appendChild(accept);
+
+    r.appendChild(card);
+  });
+
+  if (items.length > 1) {
+    const all = document.createElement('button'); all.className = 'exp-accept-all';
+    all.textContent = 'Accept all';
+    all.onclick = function() {
+      items.forEach(function(it) { expApplySuggestion(i, it.key, it.value); });
+      expToast('Applied ' + items.length + ' suggestions');
+      r.querySelectorAll('.exp-accept').forEach(function(b) { b.textContent = '✓ Accepted'; b.disabled = true; });
+      r.querySelectorAll('.exp-suggestion').forEach(function(c) { c.classList.add('exp-accepted'); });
+      all.disabled = true;
+    };
+    r.appendChild(all);
+  }
+}
+
+function expApplySuggestion(i, fieldKey, value) {
+  const proj = getActiveProject(); if (!proj) return;
+  const col = EXP_FIELD_COLS[fieldKey]; if (col === undefined) return;
+  proj.rows[i][col] = value;
+  updateProject(proj);
+  // Reuse the classic in-place field refresh so the verify control updates.
+  if (typeof refreshVerifyField === 'function') refreshVerifyField(fieldKey);
+}
+
+function expFieldLabel(key) {
+  return ({ collisionType: 'Collision Type', u1: 'Unit 1', u2: 'Unit 2', u3: 'Unit 3', u4: 'Unit 4', notes: 'Notes' })[key] || key;
+}
+
+function expEsc(s) {
+  return String(s).replace(/[&<>"]/g, function(c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; });
+}
 </script>
 
 <!-- Fullscreen PDF overlay viewer -->
