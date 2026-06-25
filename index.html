@@ -2257,12 +2257,17 @@ function expBuildSystemPrompt() {
     '- Use ONLY facts stated in the narrative. Never invent unit numbers, directions, streets, or causes.',
     '- For verdict "ok" or "change" you MUST include a verbatim quote span from the narrative that justifies it.',
     '- For "unknown" the quote may be empty; explain briefly in "reasoning" why it cannot be determined.',
+    '- Each field has a STRICT allowed format below. The "value" must conform to that format and NOTHING else.',
+    '  Put all the explanation, injuries, citations, and context in "reasoning" — NEVER in "value".',
     '',
-    'Collision type vocabulary (prefer these): ' + vocab + '.',
-    'Direction codes: NB, SB, EB, WB, or N/A.',
-    'Intersection format: the cross-streets or location named in the narrative (e.g. "N BROADWAY & W 7TH ST").',
-    'Notes style: terse and fault-oriented, e.g. "U1 failed to yield to U2" or "U2 rear-ended U1".',
-    'Good note: "U1 ran red light, struck U2". Bad note: "Unit one was driving and then there was a collision with the other vehicle".',
+    'ALLOWED VALUE FORMATS (do not deviate):',
+    '- u1, u2, u3, u4 (unit direction): EXACTLY one of these tokens and nothing more: NB, SB, EB, WB, N/A.',
+    '    A direction is a single travel direction — NOT injuries, citations, or any description.',
+    '    WRONG: "SB, DUI, arm injury, cited for DUI...". RIGHT: "SB".',
+    '- collisionType: EXACTLY one item from this list: ' + vocab + '. No new types; pick the closest.',
+    '- intersection: just the cross-streets / location, e.g. "N BROADWAY & W 7TH ST". No extra prose.',
+    '- notes: ONE short, terse, fault-oriented sentence (max ~20 words). e.g. "U1 failed to yield to U2".',
+    '    Good note: "U1 ran red light, struck U2". Bad note: a long multi-clause dump of every detail.',
     '',
     'Respond with JSON ONLY, no prose outside it, in exactly this shape:',
     '{',
@@ -2320,6 +2325,21 @@ function expExtractJson(text) {
 
 function expNormalize(s) { return (s || '').toString().trim().toLowerCase().replace(/[-\s]+/g, ' ').trim(); }
 
+// Coerce a unit-direction value to a single valid code, or '' if none is present.
+function expDirectionCode(s) {
+  const v = (s || '').toString().trim().toUpperCase();
+  if (!v) return '';
+  if (/^N\s*\/?\s*A$/.test(v)) return 'N/A';
+  const m = v.match(/\b(NB|SB|EB|WB)\b/);
+  if (m) return m[1];
+  // Spelled-out fallbacks.
+  if (/\bNORTH\b/.test(v)) return 'NB';
+  if (/\bSOUTH\b/.test(v)) return 'SB';
+  if (/\bEAST\b/.test(v)) return 'EB';
+  if (/\bWEST\b/.test(v)) return 'WB';
+  return '';
+}
+
 function expRenderSuggestions(i, parsed) {
   const r = expResultsEl(); if (!r) return;
   const proj = getActiveProject();
@@ -2334,6 +2354,13 @@ function expRenderSuggestions(i, parsed) {
     const cur = proj ? (proj.rows[i][col] || '') : '';
     let verdict = f.verdict || (f.value ? 'change' : 'unknown');
     let value = (f.value != null ? String(f.value) : '').trim();
+    // Guard: unit direction fields may only hold a direction code. If the model
+    // packed extra prose in (injuries, citations, etc.), extract just the code.
+    if (key === 'u1' || key === 'u2' || key === 'u3' || key === 'u4') {
+      const code = expDirectionCode(value);
+      if (code) { value = code; }
+      else if (verdict !== 'unknown') { verdict = value ? 'unknown' : verdict; }
+    }
     // Backstop: if the model said "change" but the normalized value matches the
     // current parsed value (e.g. "Rear end" vs "Rear-end"), treat it as "ok".
     if (verdict === 'change' && value && cur && expNormalize(value) === expNormalize(cur)) {
