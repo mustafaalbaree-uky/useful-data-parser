@@ -590,6 +590,7 @@ function buildAutoVerified(rows) {
     const row = rows[i];
     const unitCount = parseInt(row[12], 10) || 0;
     const auto = {};
+    if (unitCount < 2 && !row[8])  auto.u2 = true;
     if (unitCount < 3 && !row[9])  auto.u3 = true;
     if (unitCount < 4 && !row[10]) auto.u4 = true;
     if (Object.keys(auto).length) verified[i] = auto;
@@ -840,7 +841,11 @@ function buildVerifyFieldEl(f, i) {
   const row = proj.rows[i];
   const v = (proj.verified || {})[i] || {};
   const isUnit = function(key) { return key === 'u1' || key === 'u2' || key === 'u3' || key === 'u4'; };
-  const isV = !!v[f.key];
+  const unitCount = parseInt(row[12], 10) || 0;
+  const unitNum = { u1: 1, u2: 2, u3: 3, u4: 4 };
+  // A unit field is auto-N/A when its number exceeds the detected unit count and has no manually entered value.
+  const isAutoNA = isUnit(f.key) && unitNum[f.key] > unitCount && !row[f.col];
+  const isV = isAutoNA || !!v[f.key];
   const div = document.createElement('div');
   div.className = 'verify-field ' + (isV ? 'verified' : 'unverified');
   if (isUnit(f.key)) div.className += ' verify-field-unit';
@@ -2385,7 +2390,10 @@ function expBuildSystemPrompt() {
     'to the other involved units, and say so in reasoning (e.g. "rear-end ⇒ U1 same direction as U2 = SB").',
     'Do NOT infer a compass direction from incidental geography — which way a landmark, crosswalk, university, or',
     'building lies is NOT evidence of travel direction. Anchor ONLY on an explicitly stated direction or a defined',
-    'convention. If no unit in the group can be anchored, set them ALL to "unknown" (consistently) — never guess.'
+    'convention. If no unit in the group can be anchored, set them ALL to "unknown" (consistently) — never guess.',
+    'PARKING / STATIONARY RULE: If a unit is described as parked, in a parking lot, in a driveway, or not',
+    'actively traveling on the roadway, its travel direction is N/A — regardless of which way it was facing.',
+    'Facing direction in a parking lot is not a travel direction on the road.'
   ].concat(convLines).concat([
     '',
     'Respond with JSON ONLY, no prose outside it, in exactly this shape:',
