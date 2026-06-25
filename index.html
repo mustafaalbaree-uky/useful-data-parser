@@ -2179,8 +2179,12 @@ function expEditConventions() {
   save.onclick = function() {
     const cleaned = working.map(function(c) { return { term: (c.term || '').trim(), dir: c.dir }; }).filter(function(c) { return c.term && c.dir; });
     const p = getActiveProject(); if (p) { p.conventions = cleaned; updateProject(p); }
+    // Past analyses were produced under the old conventions — invalidate them so
+    // stale suggestions can't contradict the new convention.
+    EXP.cache = {};
     modal.remove();
-    expToast('Conventions saved');
+    if (typeof expRenderPanel === 'function') expRenderPanel();
+    expToast('Conventions saved — re-analyze to apply');
   };
   right.appendChild(cancel); right.appendChild(save);
   actions.appendChild(resetBtn); actions.appendChild(right);
@@ -2324,11 +2328,14 @@ function expGetConventions(proj) {
 function expConventionLines(proj) {
   const conv = expGetConventions(proj).filter(function(c) { return c && c.term && c.dir; });
   if (!conv.length) return [];
-  const lines = ['', 'ROADWAY CONVENTIONS (defined by the analyst for this corridor — apply these):'];
+  const lines = ['', 'ROADWAY CONVENTIONS (defined by the analyst for this corridor — these are the ONLY conventions that exist):'];
   conv.forEach(function(c) {
-    lines.push('- When the narrative describes travel as "' + c.term + '", the compass direction is ' + c.dir + '.');
+    lines.push('- "' + c.term + '" means ' + c.dir + '.');
   });
   lines.push('Use these to translate relative terms in the narrative (e.g. "inbound"/"outbound") into NB/SB/EB/WB.');
+  lines.push('CRITICAL: Apply each convention EXACTLY as written above — do not flip or reinterpret it.');
+  lines.push('Never cite a convention that is not in the list above, and never invent one. When your reasoning');
+  lines.push('references a convention, restate it verbatim from the list (e.g. "convention: inbound means SB").');
   lines.push('If the narrative gives only a relative term NOT covered by a convention and you cannot otherwise');
   lines.push('determine the compass direction, set that unit\'s verdict to "unknown" rather than guessing.');
   return lines;
