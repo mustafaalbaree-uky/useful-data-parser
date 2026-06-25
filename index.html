@@ -2135,55 +2135,100 @@ function expToast(msg) {
   t._timer = setTimeout(function() { t.classList.remove('show'); }, 1800);
 }
 
-// Per-project roadway conventions editor. Maps the narrative's relative terms
-// (e.g. "inbound"/"outbound") to compass codes so the AI can translate them.
+// Per-project roadway conventions editor — two sections:
+//   1. Direction mappings: relative term (inbound/outbound) → compass code
+//   2. General equivalences: "when narrative says X, treat it as Y" (road name aliases, etc.)
 function expEditConventions() {
   const proj = getActiveProject();
   if (!proj) { expToast('Open a project first'); return; }
-  let working = expGetConventions(proj).map(function(c) { return { term: c.term, dir: c.dir }; });
+  let workingDirs = expGetConventions(proj).map(function(c) { return { term: c.term, dir: c.dir }; });
+  let workingEq = (proj.equivalences || []).map(function(e) { return { from: e.from, to: e.to }; });
 
   const old = document.getElementById('expConvModal'); if (old) old.remove();
   const modal = document.createElement('div'); modal.id = 'expConvModal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:4000;';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:4000;overflow-y:auto;padding:24px 0;';
   const box = document.createElement('div');
-  box.style.cssText = 'background:var(--panel);border-radius:14px;padding:24px;min-width:380px;max-width:480px;display:flex;flex-direction:column;gap:12px;';
-  box.innerHTML = '<div style="font-size:15px;font-weight:700;color:var(--text);">⚙ Roadway Conventions</div>' +
-    '<div style="font-size:12px;color:var(--muted);line-height:1.5;">Map the corridor\'s relative terms to compass directions. The AI uses these to translate the narrative (e.g. "inbound on N Broadway" → SB). Applies to every entry in this project.</div>';
-  const rowsWrap = document.createElement('div'); rowsWrap.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
-  box.appendChild(rowsWrap);
+  box.style.cssText = 'background:var(--panel);border-radius:14px;padding:24px;min-width:420px;max-width:560px;width:100%;display:flex;flex-direction:column;gap:16px;';
 
+  // ── Section title helper ──
+  function sectionTitle(text, sub) {
+    const h = document.createElement('div');
+    h.innerHTML = '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">' + text + '</div>' +
+      '<div style="font-size:11px;color:var(--muted);line-height:1.5;">' + sub + '</div>';
+    return h;
+  }
+
+  box.appendChild(Object.assign(document.createElement('div'), { style: 'font-size:15px;font-weight:700;color:var(--text);' })).textContent = '⚙ Conventions';
+
+  // ── Section 1: Direction mappings ──
+  box.appendChild(sectionTitle('Direction mappings', 'Map relative travel terms in the narrative to compass codes. The AI uses these to translate "inbound" / "outbound" on this corridor.'));
+  const dirsWrap = document.createElement('div'); dirsWrap.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  box.appendChild(dirsWrap);
   const DIRS = ['NB','SB','EB','WB'];
-  function renderRows() {
-    rowsWrap.innerHTML = '';
-    working.forEach(function(c, idx) {
+  function IS(s) { return 'flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:12px;color:var(--text);font-family:inherit;outline:none;min-width:0;'; }
+  function renderDirs() {
+    dirsWrap.innerHTML = '';
+    workingDirs.forEach(function(c, idx) {
       const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;';
-      const lead = document.createElement('span'); lead.style.cssText = 'font-size:12px;color:var(--muted);'; lead.textContent = 'When narrative says';
+      const lead = document.createElement('span'); lead.style.cssText = 'font-size:12px;color:var(--muted);white-space:nowrap;'; lead.textContent = 'When narrative says';
       const term = document.createElement('input'); term.type = 'text'; term.value = c.term || '';
-      term.placeholder = 'inbound'; term.style.cssText = 'flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:12px;color:var(--text);font-family:inherit;outline:none;min-width:0;';
-      term.oninput = function() { working[idx].term = term.value; };
+      term.placeholder = 'inbound'; term.style.cssText = IS();
+      term.oninput = function() { workingDirs[idx].term = term.value; };
       const arrow = document.createElement('span'); arrow.style.cssText = 'font-size:12px;color:var(--muted);'; arrow.textContent = '→';
       const sel = document.createElement('select');
       sel.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:12px;color:var(--text);font-family:inherit;outline:none;';
       DIRS.forEach(function(d) { const o = document.createElement('option'); o.value = d; o.textContent = d; if (d === c.dir) o.selected = true; sel.appendChild(o); });
-      sel.onchange = function() { working[idx].dir = sel.value; };
+      sel.onchange = function() { workingDirs[idx].dir = sel.value; };
       const del = document.createElement('button'); del.textContent = '✕';
       del.style.cssText = 'background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;';
-      del.onclick = function() { working.splice(idx, 1); renderRows(); };
+      del.onclick = function() { workingDirs.splice(idx, 1); renderDirs(); };
       row.appendChild(lead); row.appendChild(term); row.appendChild(arrow); row.appendChild(sel); row.appendChild(del);
-      rowsWrap.appendChild(row);
+      dirsWrap.appendChild(row);
     });
+    const addDir = document.createElement('button'); addDir.textContent = '+ Add direction mapping';
+    addDir.style.cssText = 'align-self:flex-start;background:transparent;border:1px dashed var(--border);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--text);';
+    addDir.onclick = function() { workingDirs.push({ term: '', dir: 'NB' }); renderDirs(); };
+    dirsWrap.appendChild(addDir);
   }
-  renderRows();
+  renderDirs();
 
-  const addBtn = document.createElement('button'); addBtn.textContent = '+ Add convention';
-  addBtn.style.cssText = 'align-self:flex-start;background:transparent;border:1px dashed var(--border);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text);';
-  addBtn.onclick = function() { working.push({ term: '', dir: 'NB' }); renderRows(); };
-  box.appendChild(addBtn);
+  // Divider
+  const divider = document.createElement('div'); divider.style.cssText = 'border-top:1px solid var(--border);';
+  box.appendChild(divider);
 
-  const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:4px;';
-  const resetBtn = document.createElement('button'); resetBtn.textContent = 'Reset to default';
+  // ── Section 2: General equivalences ──
+  box.appendChild(sectionTitle('General equivalences', 'Tell the AI that two names or phrases refer to the same thing (e.g. road name aliases). When the narrative uses the left term, the AI treats it as the right term.'));
+  const eqWrap = document.createElement('div'); eqWrap.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  box.appendChild(eqWrap);
+  function renderEq() {
+    eqWrap.innerHTML = '';
+    workingEq.forEach(function(e, idx) {
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;';
+      const fromInp = document.createElement('input'); fromInp.type = 'text'; fromInp.value = e.from || '';
+      fromInp.placeholder = 'Highway 21'; fromInp.style.cssText = IS();
+      fromInp.oninput = function() { workingEq[idx].from = fromInp.value; };
+      const eq = document.createElement('span'); eq.style.cssText = 'font-size:12px;color:var(--muted);white-space:nowrap;'; eq.textContent = '= same as';
+      const toInp = document.createElement('input'); toInp.type = 'text'; toInp.value = e.to || '';
+      toInp.placeholder = 'Big Hill Rd'; toInp.style.cssText = IS();
+      toInp.oninput = function() { workingEq[idx].to = toInp.value; };
+      const del = document.createElement('button'); del.textContent = '✕';
+      del.style.cssText = 'background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;';
+      del.onclick = function() { workingEq.splice(idx, 1); renderEq(); };
+      row.appendChild(fromInp); row.appendChild(eq); row.appendChild(toInp); row.appendChild(del);
+      eqWrap.appendChild(row);
+    });
+    const addEq = document.createElement('button'); addEq.textContent = '+ Add equivalence';
+    addEq.style.cssText = 'align-self:flex-start;background:transparent;border:1px dashed var(--border);border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--text);';
+    addEq.onclick = function() { workingEq.push({ from: '', to: '' }); renderEq(); };
+    eqWrap.appendChild(addEq);
+  }
+  renderEq();
+
+  // ── Actions ──
+  const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:4px;border-top:1px solid var(--border);padding-top:12px;';
+  const resetBtn = document.createElement('button'); resetBtn.textContent = 'Reset directions to default';
   resetBtn.style.cssText = 'background:transparent;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;';
-  resetBtn.onclick = function() { working = expDefaultConventions(); renderRows(); };
+  resetBtn.onclick = function() { workingDirs = expDefaultConventions(); renderDirs(); };
   const right = document.createElement('div'); right.style.cssText = 'display:flex;gap:10px;';
   const cancel = document.createElement('button'); cancel.textContent = 'Cancel';
   cancel.style.cssText = 'background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--text);';
@@ -2191,10 +2236,10 @@ function expEditConventions() {
   const save = document.createElement('button'); save.textContent = 'Save conventions';
   save.style.cssText = 'background:var(--accent2);border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#fff;cursor:pointer;';
   save.onclick = function() {
-    const cleaned = working.map(function(c) { return { term: (c.term || '').trim(), dir: c.dir }; }).filter(function(c) { return c.term && c.dir; });
-    const p = getActiveProject(); if (p) { p.conventions = cleaned; updateProject(p); }
-    // Past analyses were produced under the old conventions — invalidate them so
-    // stale suggestions can't contradict the new convention.
+    const cleanedDirs = workingDirs.map(function(c) { return { term: (c.term || '').trim(), dir: c.dir }; }).filter(function(c) { return c.term && c.dir; });
+    const cleanedEq = workingEq.map(function(e) { return { from: (e.from || '').trim(), to: (e.to || '').trim() }; }).filter(function(e) { return e.from && e.to; });
+    const p = getActiveProject();
+    if (p) { p.conventions = cleanedDirs; p.equivalences = cleanedEq; updateProject(p); }
     EXP.cache = {};
     modal.remove();
     if (typeof expRenderPanel === 'function') expRenderPanel();
@@ -2355,11 +2400,23 @@ function expConventionLines(proj) {
   return lines;
 }
 
+function expEquivalenceLines(proj) {
+  const eq = (proj && Array.isArray(proj.equivalences)) ? proj.equivalences.filter(function(e) { return e && e.from && e.to; }) : [];
+  if (!eq.length) return [];
+  const lines = ['', 'TERM EQUIVALENCES (defined by the analyst — treat both sides as the same thing):'];
+  eq.forEach(function(e) {
+    lines.push('- "' + e.from + '" and "' + e.to + '" refer to the same road / location / entity. Do not flag a disagreement between them — they are identical for verification purposes.');
+  });
+  return lines;
+}
+
 function expBuildSystemPrompt() {
   const types = getCollisionTypeOptions();
   const standard = ['Rear-end','Angle','Head-on','Sideswipe','Opposing Left Turn','Backing','Single Vehicle'];
   const vocab = Array.from(new Set(standard.concat(types))).join(', ');
-  const convLines = expConventionLines(getActiveProject());
+  const proj = getActiveProject();
+  const convLines = expConventionLines(proj);
+  const eqLines = expEquivalenceLines(proj);
   return [
     'You are a crash-report verification assistant for a traffic-records analyst.',
     'You are given an officer\'s free-text narrative plus fields a parser already extracted.',
@@ -2385,7 +2442,11 @@ function expBuildSystemPrompt() {
     '    A direction is a single travel direction — NOT injuries, citations, or any description.',
     '    WRONG: "SB, DUI, arm injury, cited for DUI...". RIGHT: "SB".',
     '- collisionType: EXACTLY one item from this list: ' + vocab + '. No new types; pick the closest.',
-    '- intersection: just the cross-streets / location, e.g. "N BROADWAY & W 7TH ST". No extra prose.',
+    '- intersection: EXACTLY one of two forms — (a) the cross-street name formatted as "STREET A & STREET B",',
+    '    e.g. "N BROADWAY & W 7TH ST", or (b) the literal letter "N" if the crash was NOT at an intersection.',
+    '    Do NOT write a description, address, parking lot name, or any other free-form location text.',
+    '    WRONG: "parking lot of Speedway at 716 N Broadway". WRONG: "near Transylvania University".',
+    '    RIGHT: "N BROADWAY & W 3RD ST". RIGHT (not an intersection): "N".',
     '- notes: ONE short, terse, fault-oriented sentence (max ~20 words). e.g. "U1 failed to yield to U2".',
     '    Good note: "U1 ran red light, struck U2". Bad note: a long multi-clause dump of every detail.',
     '',
@@ -2403,7 +2464,7 @@ function expBuildSystemPrompt() {
     'PARKING / STATIONARY RULE: If a unit is described as parked, in a parking lot, in a driveway, or not',
     'actively traveling on the roadway, its travel direction is N/A — regardless of which way it was facing.',
     'Facing direction in a parking lot is not a travel direction on the road.'
-  ].concat(convLines).concat([
+  ].concat(convLines).concat(eqLines).concat([
     '',
     'Respond with JSON ONLY, no prose outside it, in exactly this shape:',
     '{',
