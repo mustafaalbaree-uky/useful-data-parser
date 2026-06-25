@@ -919,6 +919,13 @@ function buildVerifyFieldEl(f, i) {
     const vBtn = document.createElement('button'); vBtn.className = 'verify-btn'; vBtn.textContent = 'Verify';
     vBtn.onclick = function() { verifyField(f.key, f.col, ctrl.value); };
     div.appendChild(vBtn);
+    // Ctrl/Cmd+Enter while focused in this field verifies it.
+    if (ctrl) ctrl.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        verifyField(f.key, f.col, ctrl.value);
+      }
+    });
   }
   return div;
 }
