@@ -1482,9 +1482,35 @@ function parseReport(raw) {
       }
     }
   }
-  r.parsedIntersection = parsedIntersection;
+  r.parsedIntersection = orderIntersectionRoads(parsedIntersection);
 
   return r;
+}
+
+// Reorder a "STREET A & STREET B" intersection string so the project's primary
+// corridor road comes first. Leaves "between" forms and non-intersection values
+// untouched. No-op when no primary roads are defined for the active project.
+function orderIntersectionRoads(str) {
+  const s = (str || '').trim();
+  if (!s || s.indexOf(' & ') === -1 || / between /i.test(s)) return s;
+  const proj = getActiveProject();
+  const roads = (proj && Array.isArray(proj.primaryRoads)) ? proj.primaryRoads.filter(function(r) { return r && r.trim(); }) : [];
+  if (!roads.length) return s;
+  const parts = s.split(' & ');
+  if (parts.length !== 2) return s;
+  const norm = function(x) { return (x || '').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
+  // Priority rank of a road side: index in primaryRoads (lower = higher priority), or Infinity.
+  const rankOf = function(side) {
+    const ns = norm(side);
+    for (let i = 0; i < roads.length; i++) {
+      const nr = norm(roads[i]);
+      if (nr && (ns === nr || ns.indexOf(nr) !== -1 || nr.indexOf(ns) !== -1)) return i;
+    }
+    return Infinity;
+  };
+  const r0 = rankOf(parts[0]), r1 = rankOf(parts[1]);
+  if (r1 < r0) return parts[1].trim() + ' & ' + parts[0].trim();
+  return parts[0].trim() + ' & ' + parts[1].trim();
 }
 
 // ── Manual entry actions ──────────────────────────────────────────────────────
