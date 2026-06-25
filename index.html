@@ -264,6 +264,10 @@ body.experimental-on .topbar-title::after { content: ' • EXPERIMENTAL'; color:
       <label class="create-label" for="createNameInput">Project Name</label>
       <input type="text" id="createNameInput" class="create-input" placeholder="Enter a name for this project…">
     </div>
+    <div>
+      <label class="create-label" for="createPrimaryInput">Primary Road(s) <span style="font-weight:400;color:var(--muted);">— optional, comma-separated; listed first in every intersection</span></label>
+      <input type="text" id="createPrimaryInput" class="create-input" placeholder="e.g. Big Hill Rd, Main St" oninput="rememberPrimaryDefault(this.value)">
+    </div>
     <div id="createStatus" style="font-size:13px; color:var(--muted); min-height:18px;"></div>
     <button class="btn-primary" id="createBtn" onclick="processAndCreate()">Process PDF</button>
   </div>
@@ -525,6 +529,10 @@ function showScreen(name, opts) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   if (name === 'menu') renderMenu();
+  if (name === 'create') {
+    const pi = document.getElementById('createPrimaryInput');
+    if (pi && !pi.value) pi.value = localStorage.getItem('dp_primary_roads_default') || '';
+  }
   if (name === 'table') renderTableView();
   if (name === 'verify') {
     if (opts.index !== undefined) APP.verifyIndex = opts.index;
@@ -617,6 +625,13 @@ async function processAndCreate() {
   const name = nameInput.value.trim() || firstName.replace(/\.pdf$/i, '');
   btn.disabled = true;
 
+  // Primary road(s) typed on the Create screen — applied during this first parse
+  // (before the project object exists) and saved onto the new project.
+  const primaryInput = document.getElementById('createPrimaryInput');
+  const primaryRoads = parsePrimaryRoadsInput(primaryInput ? primaryInput.value : '');
+  APP.pendingPrimaryRoads = primaryRoads;
+  rememberPrimaryDefault(primaryInput ? primaryInput.value : '');
+
   // Use a temporary project ID so processPdfForProject can cache into SESSION correctly
   const tmpId = genId();
   APP.projectId = tmpId;
@@ -646,10 +661,12 @@ async function processAndCreate() {
     rowSources: allRowSources,
     rowHasDiagram: allRowHasDiagram,
     verified: buildAutoVerified(allRows),
+    primaryRoads: primaryRoads,
   };
   // Update SESSION so it's keyed to the real project id
   SESSION.pdfProjectId = tmpId;
   updateProject(proj);
+  APP.pendingPrimaryRoads = null;
   APP.verifyIndex = 0;
   fileInput.value = '';
   nameInput.value = '';
@@ -1487,14 +1504,36 @@ function parseReport(raw) {
   return r;
 }
 
+// Primary corridor roads in effect right now: the active project's list if set,
+// otherwise the roads pending from the Create screen (during the very first parse,
+// before the project object exists), otherwise the remembered global default.
+function activePrimaryRoads() {
+  const proj = getActiveProject();
+  if (proj && Array.isArray(proj.primaryRoads) && proj.primaryRoads.length) {
+    return proj.primaryRoads.filter(function(r) { return r && r.trim(); });
+  }
+  if (Array.isArray(APP.pendingPrimaryRoads) && APP.pendingPrimaryRoads.length) {
+    return APP.pendingPrimaryRoads.filter(function(r) { return r && r.trim(); });
+  }
+  return parsePrimaryRoadsInput(localStorage.getItem('dp_primary_roads_default') || '');
+}
+
+// Split a comma-separated primary-roads string into a clean array.
+function parsePrimaryRoadsInput(str) {
+  return (str || '').split(',').map(function(r) { return r.trim(); }).filter(function(r) { return r; });
+}
+
+function rememberPrimaryDefault(val) {
+  localStorage.setItem('dp_primary_roads_default', val || '');
+}
+
 // Reorder a "STREET A & STREET B" intersection string so the project's primary
 // corridor road comes first. Leaves "between" forms and non-intersection values
 // untouched. No-op when no primary roads are defined for the active project.
 function orderIntersectionRoads(str) {
   const s = (str || '').trim();
   if (!s || s.indexOf(' & ') === -1 || / between /i.test(s)) return s;
-  const proj = getActiveProject();
-  const roads = (proj && Array.isArray(proj.primaryRoads)) ? proj.primaryRoads.filter(function(r) { return r && r.trim(); }) : [];
+  const roads = activePrimaryRoads();
   if (!roads.length) return s;
   const parts = s.split(' & ');
   if (parts.length !== 2) return s;
