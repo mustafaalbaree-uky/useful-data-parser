@@ -146,6 +146,18 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 .verify-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .verify-panel-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 .verify-narrative { font-size: 15px; color: var(--text); max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: ui-monospace, monospace; line-height: 1.6; }
+/* editable combobox (unit dir + collision type) */
+.vc-combo { position: relative; flex: 1; min-width: 0; }
+.vc-combo-narrow { flex: 0 0 auto; width: 90px; }
+.vc-combo-input { width: 100%; font-size: 14px; background: transparent; border: none; color: var(--text); font-family: inherit; outline: none; padding: 0; }
+.verify-field.unverified .vc-combo-input { border-bottom: 1px dashed var(--accent2); }
+.vc-combo-dd { display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 120px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; z-index: 200; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+.vc-combo-opt { padding: 7px 12px; font-size: 13px; cursor: pointer; color: var(--text); }
+.vc-combo-opt:hover { background: var(--panel2); }
+.verify-field-unit .verify-field-label { width: 70px; }
+.verify-field-notes { align-items: flex-start; }
+.verify-field-notes-input { flex: 1; min-height: 80px; resize: vertical; font-size: 14px; background: transparent; border: none; color: var(--text); font-family: inherit; outline: none; padding: 0; line-height: 1.5; }
+.verify-field.unverified .verify-field-notes-input { border-bottom: 1px dashed var(--accent2); }
 .verify-empty-text { color: var(--muted); font-style: italic; font-size: 13px; }
 .view-pdf-btn { background: var(--accent2); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .view-pdf-btn:hover { background: var(--accent); }
@@ -160,7 +172,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 .diagram-page-bar button { white-space: nowrap; }
 .diagram-canvas-scroll { overflow: auto; }
 .diagram-page-wrap canvas { display: block; max-width: 100%; cursor: zoom-in; }
-.diagram-page-wrap.diagram-fullscreen { position: fixed; inset: 0; z-index: 400; border-radius: 0; margin: 0; display: flex; flex-direction: column; }
+.diagram-page-wrap.diagram-fullscreen { position: fixed; inset: 0; z-index: 1000; border-radius: 0; margin: 0; display: flex; flex-direction: column; }
 .diagram-page-wrap.diagram-fullscreen .diagram-canvas-scroll { flex: 1; overflow: auto; background: #111; display: flex; align-items: flex-start; justify-content: center; }
 .diagram-page-wrap.diagram-fullscreen canvas { max-width: none; max-height: none; height: calc(100vh - 44px); width: auto; cursor: zoom-in; }
 #pdfPagesWrap.pdf-fullscreen { position: fixed; inset: 0; z-index: 300; border-radius: 0; margin: 0; display: flex !important; flex-direction: column; }
@@ -322,19 +334,20 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         </div>
         <div class="verify-info-grid" id="verifyInfoGrid"></div>
         <div class="verify-fields" id="verifyFields"></div>
+        <div id="verifySourcePdf" style="margin-top:4px; font-size:11px; font-style:italic; color:var(--muted); word-break:break-all;"></div>
       </div>
       <div class="verify-right">
-        <button class="view-pdf-btn" onclick="viewInPdf()">View in PDF</button>
-        <div id="verifySourcePdf" style="margin-top:6px; font-size:11px; font-style:italic; color:var(--muted); word-break:break-all;"></div>
-        <div class="verify-panel" style="margin-top:10px;">
+        <div class="verify-panel">
           <div class="verify-panel-label">Supporting text</div>
           <div id="verifyNarrative"></div>
         </div>
-        <div class="verify-panel" style="margin-top:12px;">
-          <div class="verify-panel-label">Diagram</div>
-          <div id="verifyDiagram"></div>
-        </div>
+        <button class="view-pdf-btn" onclick="viewInPdf()" style="margin-top:10px; align-self:flex-start;">View in PDF</button>
       </div>
+    </div>
+    <!-- Diagram: full-width row below both columns; hidden when no diagram -->
+    <div id="verifyDiagramPanel" class="verify-panel" style="display:none; margin-top:16px;">
+      <div class="verify-panel-label">Diagram</div>
+      <div id="verifyDiagram"></div>
     </div>
     <!-- PDF viewer — full width below both columns -->
     <div id="pdfPagesWrap">
@@ -812,17 +825,41 @@ function renderVerifyView() {
   const fieldsEl = document.getElementById('verifyFields');
   fieldsEl.innerHTML = '';
   const v = verified[i] || {};
+  const isUnit = function(key) { return key === 'u1' || key === 'u2' || key === 'u3' || key === 'u4'; };
   VERIFY_FIELDS.forEach(function(f) {
     const isV = !!v[f.key];
     const div = document.createElement('div');
     div.className = 'verify-field ' + (isV ? 'verified' : 'unverified');
+    if (isUnit(f.key)) div.className += ' verify-field-unit';
+    if (f.key === 'notes') div.className += ' verify-field-notes';
 
     const lbl = document.createElement('div'); lbl.className = 'verify-field-label'; lbl.textContent = f.label;
-    const inp = document.createElement('input'); inp.className = 'verify-field-val'; inp.type = 'text';
-    inp.value = row[f.col] || '';
-    inp.readOnly = isV;
+    div.appendChild(lbl);
 
-    div.appendChild(lbl); div.appendChild(inp);
+    // Build the value control depending on field type
+    let ctrl; // element whose .value holds the current text
+    const commitLive = function(val) {
+      const p = getActiveProject(); if (!p) return;
+      p.rows[APP.verifyIndex][f.col] = val;
+      updateProject(p);
+    };
+    if (isUnit(f.key)) {
+      const combo = buildEditableCombo(row[f.col] || '', function() { return ['NB','SB','WB','EB','N/A']; }, { narrow: true, readOnly: isV, onChange: commitLive });
+      ctrl = combo.input; div.appendChild(combo.wrap);
+    } else if (f.key === 'collisionType') {
+      const combo = buildEditableCombo(row[f.col] || '', getCollisionTypeOptions, { readOnly: isV, onChange: commitLive });
+      ctrl = combo.input; div.appendChild(combo.wrap);
+    } else if (f.key === 'notes') {
+      const ta = document.createElement('textarea'); ta.className = 'verify-field-notes-input';
+      ta.value = row[f.col] || ''; ta.readOnly = isV;
+      ta.oninput = function() { commitLive(ta.value); };
+      ctrl = ta; div.appendChild(ta);
+    } else {
+      const inp = document.createElement('input'); inp.className = 'verify-field-val'; inp.type = 'text';
+      inp.value = row[f.col] || ''; inp.readOnly = isV;
+      inp.oninput = function() { commitLive(inp.value); };
+      ctrl = inp; div.appendChild(inp);
+    }
 
     if (isV) {
       const chk = document.createElement('span'); chk.className = 'verify-check'; chk.textContent = '✓';
@@ -831,7 +868,7 @@ function renderVerifyView() {
       div.appendChild(chk); div.appendChild(editBtn);
     } else {
       const vBtn = document.createElement('button'); vBtn.className = 'verify-btn'; vBtn.textContent = 'Verify';
-      vBtn.onclick = function() { verifyField(f.key, f.col, inp.value); };
+      vBtn.onclick = function() { verifyField(f.key, f.col, ctrl.value); };
       div.appendChild(vBtn);
     }
     fieldsEl.appendChild(div);
@@ -885,55 +922,77 @@ function buildDiagramCard(canvas, pageNum) {
   return dWrap;
 }
 
+// Editable combobox: type freely or pick from getOptions(); themed dropdown.
+function buildEditableCombo(value, getOptions, opts) {
+  opts = opts || {};
+  const wrap = document.createElement('div'); wrap.className = 'vc-combo' + (opts.narrow ? ' vc-combo-narrow' : '');
+  const input = document.createElement('input'); input.type = 'text'; input.className = 'vc-combo-input';
+  input.value = value || ''; input.readOnly = !!opts.readOnly;
+  const dd = document.createElement('div'); dd.className = 'vc-combo-dd';
+  function renderOpts() {
+    const filter = input.value.trim().toLowerCase();
+    const all = (getOptions() || []).filter(Boolean);
+    const seen = new Set(); const list = [];
+    for (const o of all) { const k = String(o).toLowerCase(); if (seen.has(k)) continue; seen.add(k); list.push(o); }
+    const shown = filter ? list.filter(function(o){ return String(o).toLowerCase().includes(filter); }) : list;
+    dd.innerHTML = '';
+    if (!shown.length) { dd.style.display = 'none'; return; }
+    shown.forEach(function(o) {
+      const d = document.createElement('div'); d.className = 'vc-combo-opt'; d.textContent = o;
+      d.onmousedown = function(e) { e.preventDefault(); input.value = o; dd.style.display = 'none'; if (opts.onChange) opts.onChange(o); };
+      dd.appendChild(d);
+    });
+    dd.style.display = 'block';
+  }
+  input.onfocus = function() { if (!input.readOnly) renderOpts(); };
+  input.oninput = function() { renderOpts(); if (opts.onChange) opts.onChange(input.value); };
+  input.onblur = function() { setTimeout(function(){ dd.style.display = 'none'; }, 120); };
+  wrap.appendChild(input); wrap.appendChild(dd);
+  return { wrap, input };
+}
+
+// Distinct collision-type values already entered across this project's rows.
+function getCollisionTypeOptions() {
+  const proj = getActiveProject(); if (!proj) return [];
+  const seen = new Set(); const out = [];
+  (proj.rows || []).forEach(function(r) {
+    const val = (r[5] || '').trim();
+    if (val && !seen.has(val.toLowerCase())) { seen.add(val.toLowerCase()); out.push(val); }
+  });
+  return out;
+}
+
 async function renderDiagramForEntry() {
   const proj = getActiveProject(); if (!proj) return;
   const i = APP.verifyIndex;
+  const panel = document.getElementById('verifyDiagramPanel');
   const container = document.getElementById('verifyDiagram');
-  if (!container) return;
-  const range = (proj.reportPages || [])[i];
-  const rowSource = (proj.rowSources || [])[i] || proj.pdfName || '';
+  if (!container || !panel) return;
   container.innerHTML = '';
+  panel.style.display = 'none'; // only shown when a diagram is actually rendered
 
-  if (!range) {
-    container.className = 'verify-empty-text';
-    container.textContent = 'No diagram available for this entry.';
-    return;
-  }
-
+  const range = (proj.reportPages || [])[i];
+  if (!range) return;
+  const rowSource = (proj.rowSources || [])[i] || proj.pdfName || '';
   const cacheValid = SESSION.pdf
     && SESSION.pdfProjectId === APP.projectId
     && SESSION.pdfFileName === rowSource;
+  if (!cacheValid) return; // PDF not loaded yet; nothing to show
 
-  if (!cacheValid) {
-    container.className = '';
-    const btn = document.createElement('button');
-    btn.className = 'btn-sec';
-    btn.textContent = 'Load PDF to show diagram';
-    btn.onclick = async function() { const ok = await pickAndCachePdf(); if (ok) renderDiagramForEntry(); };
-    container.appendChild(btn);
-    return;
-  }
-
-  container.className = '';
   const reqIndex = i; // guard against navigating away mid-render
-  let found = false;
   for (let p = range.start; p <= range.end; p++) {
     try {
       const page = await SESSION.pdf.getPage(p);
       const tc = await page.getTextContent();
       if (tc.items.length !== 0) continue; // only text-free (diagram) pages
       if (APP.verifyIndex !== reqIndex) return; // user navigated; abort
-      found = true;
       const viewport = page.getViewport({ scale: 1.5 });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width; canvas.height = viewport.height;
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
       container.appendChild(buildDiagramCard(canvas, p));
+      panel.style.display = ''; // reveal panel now that we have a diagram
     } catch(e) { /* skip pages that fail to render */ }
-  }
-  if (!found) {
-    container.className = 'verify-empty-text';
-    container.textContent = 'No diagram detected for this entry.';
   }
 }
 
@@ -1043,6 +1102,8 @@ async function viewInPdf() {
       }
     } catch(e) { /* skip pages that fail to render */ }
   }
+  // Now that the PDF is cached, populate the inline diagram panel for this entry
+  renderDiagramForEntry();
 }
 
 // ── Intersection combobox ──────────────────────────────────────────────────────
