@@ -287,7 +287,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         <table id="outTable">
           <thead>
             <tr>
-              <th>Intersection</th><th></th><th>Date</th><th>DOW</th><th>Time</th>
+              <th>Intersection</th><th>At Int?</th><th>Date</th><th>DOW</th><th>Time</th>
               <th>Collision Type</th><th>Wthr/Road</th>
               <th>Unit 1</th><th>Unit 2</th><th>Unit 3</th><th>Unit 4</th>
               <th>Injuries</th><th>Units</th><th>Notes</th>
@@ -398,7 +398,7 @@ td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
         <table id="legacyTable">
           <thead>
             <tr>
-              <th>Intersection</th><th></th><th>Date</th><th>DOW</th><th>Time</th>
+              <th>Intersection</th><th>At Int?</th><th>Date</th><th>DOW</th><th>Time</th>
               <th>Collision Type</th><th>Wthr/Road</th>
               <th>Unit 1</th><th>Unit 2</th><th>Unit 3</th><th>Unit 4</th>
               <th>Injuries</th><th>Units</th><th>Notes</th>
@@ -664,12 +664,14 @@ function addPdfToProject() {
 
 // ── Table view ────────────────────────────────────────────────────────────────
 const VERIFY_FIELDS = [
-  { key: 'collisionType', label: 'Collision Type', col: 5 },
-  { key: 'u1',            label: 'Unit 1',          col: 7 },
-  { key: 'u2',            label: 'Unit 2',          col: 8 },
-  { key: 'u3',            label: 'Unit 3',          col: 9 },
-  { key: 'u4',            label: 'Unit 4',          col: 10 },
-  { key: 'notes',         label: 'Notes',            col: 13 },
+  { key: 'intersection',   label: 'Intersection',    col: 0 },
+  { key: 'atIntersection', label: 'At Int?',          col: 1 },
+  { key: 'collisionType',  label: 'Collision Type',   col: 5 },
+  { key: 'u1',             label: 'Unit 1',           col: 7 },
+  { key: 'u2',             label: 'Unit 2',           col: 8 },
+  { key: 'u3',             label: 'Unit 3',           col: 9 },
+  { key: 'u4',             label: 'Unit 4',           col: 10 },
+  { key: 'notes',          label: 'Notes',             col: 13 },
 ];
 const INFO_FIELDS = [
   { label: 'Date', col: 2 }, { label: 'Day', col: 3 }, { label: 'Time', col: 4 },
@@ -847,7 +849,14 @@ function renderVerifyView() {
       p.rows[APP.verifyIndex][f.col] = val;
       updateProject(p);
     };
-    if (isUnit(f.key)) {
+    if (f.key === 'intersection') {
+      if (isV) div.className = div.className.replace(' verify-field-unit','');
+      const combo = buildEditableCombo(row[f.col] || '', getIntersectionOptions, { readOnly: isV, onChange: commitLive });
+      ctrl = combo.input; div.appendChild(combo.wrap);
+    } else if (f.key === 'atIntersection') {
+      const combo = buildEditableCombo(row[f.col] || '', function() { return ['Y','N']; }, { narrow: true, readOnly: isV, onChange: commitLive });
+      ctrl = combo.input; div.className += ' verify-field-unit'; div.appendChild(combo.wrap);
+    } else if (isUnit(f.key)) {
       const combo = buildEditableCombo(row[f.col] || '', function() { return ['NB','SB','WB','EB','N/A']; }, { narrow: true, readOnly: isV, onChange: commitLive });
       ctrl = combo.input; div.appendChild(combo.wrap);
     } else if (f.key === 'collisionType') {
@@ -953,6 +962,27 @@ function buildEditableCombo(value, getOptions, opts) {
   input.onblur = function() { setTimeout(function(){ dd.style.display = 'none'; }, 120); };
   wrap.appendChild(input); wrap.appendChild(dd);
   return { wrap, input };
+}
+
+// Natural sort key: extract the first number-like token so "W 2ND ST" < "W 6TH ST" < "W 12TH ST"
+function intersectionSortKey(s) {
+  s = String(s || '');
+  // Extract a leading ordinal/cardinal number from the string
+  const m = s.match(/\b(\d+)(?:ST|ND|RD|TH)?\b/i);
+  const num = m ? parseInt(m[1], 10) : 9999;
+  return String(num).padStart(6, '0') + s.toLowerCase();
+}
+
+// All distinct non-empty intersection names across this project's rows, sorted numerically.
+function getIntersectionOptions() {
+  const proj = getActiveProject(); if (!proj) return [];
+  const seen = new Set(); const out = [];
+  (proj.rows || []).forEach(function(r) {
+    const val = (r[0] || '').trim();
+    if (val && !seen.has(val)) { seen.add(val); out.push(val); }
+  });
+  out.sort(function(a,b) { return intersectionSortKey(a).localeCompare(intersectionSortKey(b)); });
+  return out;
 }
 
 // Distinct collision-type values already entered across this project's rows.
@@ -1279,6 +1309,59 @@ function parseReport(raw) {
   if (sw) weather = tidyWord(sw.match(ww)[0]);
   if (sr) road = tidyWord(sr.match(cw)[0]);
   if (weather || road) r.weatherRoad = [weather, road].filter(Boolean).join('/');
+
+  // ── Intersection / location parsing ──────────────────────────────────────────
+  // Extract PARKING LOT and BETWEEN STREETS flags from the text
+  const locM = text.match(/PARKING\s+LOT\s*:\s*([YN])\s+BETWEEN\s+STREETS\s*:\s*([YN]{1,2})/i);
+  const parkingLot = locM ? locM[1].toUpperCase() : 'N';
+  const betweenCode = locM ? locM[2].toUpperCase() : '';  // e.g. "NY", "YN", "NN"
+
+  // Decide at-intersection flag: Y/N, or '?' if ambiguous
+  // parkingLot=Y  → not a street intersection → N
+  // betweenCode=NN → mid-block, no intersection info → N
+  // betweenCode has any Y → some kind of intersection → Y
+  let atIntersection;
+  if (parkingLot === 'Y') {
+    atIntersection = 'N';
+  } else if (!betweenCode || betweenCode === 'NN') {
+    atIntersection = 'N';
+  } else {
+    atIntersection = 'Y'; // NY = at named cross street; YN = between two streets
+  }
+  r.atIntersection = atIntersection;
+
+  // Parse the roadway-name block (between "ROADWAY #" label and "COLLISION DATE")
+  const roadBlockM = text.match(/ROADWAY\s+#\n([\s\S]*?)(?:COLLISION DATE|MILEPOINT)/i);
+  let parsedIntersection = '';
+  if (roadBlockM && atIntersection === 'Y') {
+    const block = roadBlockM[1].trim();
+    if (/1st STREET\s*:/i.test(block)) {
+      // YN case: "MAIN_ROAD 1st STREET: CROSS1\n2nd STREET: CROSS2"
+      const m = block.match(/^([^\n]+?)\s+1st STREET\s*:\s*([^\n]+)(?:\n2nd STREET\s*:\s*([^\n]+))?/im);
+      if (m) {
+        const main = m[1].replace(/\bUS\d+\b/g,'').replace(/-/g,' ').trim();
+        const c1 = m[2].trim();
+        const c2 = m[3] ? m[3].trim() : '';
+        parsedIntersection = main + (c2 ? ' between ' + c1 + ' & ' + c2 : ' & ' + c1);
+      }
+    } else {
+      // NY case: "CROSS_STREET ROUTE_NUM-MAIN_ROAD" on one line
+      //    e.g. "W 6TH ST US0027-N BROADWAY"
+      //    or two-line: "N BROADWAY\nUS0027\nFrontage Rd"
+      const firstLine = block.split('\n')[0].replace(/\*/g,' ').trim();
+      const mRoute = firstLine.match(/^(.+?)\s+[A-Z]+\d+[-–](.+)$/);
+      if (mRoute) {
+        const cross = mRoute[1].trim();
+        const main = mRoute[2].replace(/[–-]/g,' ').trim();
+        parsedIntersection = main + ' & ' + cross;
+      } else {
+        // No route number separator — use what we have
+        parsedIntersection = firstLine.replace(/\b[A-Z]+\d+\b/g,'').replace(/\s+/g,' ').trim();
+      }
+    }
+  }
+  r.parsedIntersection = parsedIntersection;
+
   return r;
 }
 
@@ -1296,7 +1379,7 @@ function parseAndAdd() {
   const notes = secondary ? '"' + intersection + '" and "' + secondary + '"' : '';
   const proj = getActiveProject();
   if (!proj) return;
-  const newRow = [intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords];
+  const newRow = [intersection, intersection.trim() ? 'Y' : '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords];
   proj.rows.push(newRow);
   if (!proj.narrative) proj.narrative = [];
   proj.narrative.push('');
@@ -1678,7 +1761,7 @@ async function processPdfForProject(file, statusEl) {
     const narrText = rep.narrativePages.map(p => p.text).join('\n\n');
     const { notes } = inferCollisionInfo(parsedUnits, { reportedType: r.type, narrative: narrText, mainText: rep.mainPage.text });
     const u = n => (parsedUnits.find(x => x.unitNum === n) || {}).overrideDir || '';
-    rows.push(['', '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords]);
+    rows.push([r.parsedIntersection || '', r.atIntersection || '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords]);
     narrative.push(trimNarrative(rep.narrativePages.map(p => p.text).join('\n\n')));
   }
 
@@ -1738,7 +1821,7 @@ function legacyParseAndAdd() {
   saveIntersection(intersection);
   const notes = secondary ? '"' + intersection + '" and "' + secondary + '"' : '';
   const rows = getLegacyRows();
-  rows.push([intersection, '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords]);
+  rows.push([intersection, intersection ? 'Y' : '', r.date, r.day, r.time, r.type, r.weatherRoad, '', '', '', '', r.injuries, r.units, notes, pageNum, coords]);
   saveLegacyRows(rows);
   legacyRenderRows();
   saveLegacyState();
