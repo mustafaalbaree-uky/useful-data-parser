@@ -2121,6 +2121,76 @@ function expToast(msg) {
   t._timer = setTimeout(function() { t.classList.remove('show'); }, 1800);
 }
 
+// Per-project roadway conventions editor. Maps the narrative's relative terms
+// (e.g. "inbound"/"outbound") to compass codes so the AI can translate them.
+function expEditConventions() {
+  const proj = getActiveProject();
+  if (!proj) { expToast('Open a project first'); return; }
+  let working = expGetConventions(proj).map(function(c) { return { term: c.term, dir: c.dir }; });
+
+  const old = document.getElementById('expConvModal'); if (old) old.remove();
+  const modal = document.createElement('div'); modal.id = 'expConvModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:4000;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--panel);border-radius:14px;padding:24px;min-width:380px;max-width:480px;display:flex;flex-direction:column;gap:12px;';
+  box.innerHTML = '<div style="font-size:15px;font-weight:700;color:var(--text);">⚙ Roadway Conventions</div>' +
+    '<div style="font-size:12px;color:var(--muted);line-height:1.5;">Map the corridor\'s relative terms to compass directions. The AI uses these to translate the narrative (e.g. "inbound on N Broadway" → SB). Applies to every entry in this project.</div>';
+  const rowsWrap = document.createElement('div'); rowsWrap.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  box.appendChild(rowsWrap);
+
+  const DIRS = ['NB','SB','EB','WB'];
+  function renderRows() {
+    rowsWrap.innerHTML = '';
+    working.forEach(function(c, idx) {
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;';
+      const lead = document.createElement('span'); lead.style.cssText = 'font-size:12px;color:var(--muted);'; lead.textContent = 'When narrative says';
+      const term = document.createElement('input'); term.type = 'text'; term.value = c.term || '';
+      term.placeholder = 'inbound'; term.style.cssText = 'flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:12px;color:var(--text);font-family:inherit;outline:none;min-width:0;';
+      term.oninput = function() { working[idx].term = term.value; };
+      const arrow = document.createElement('span'); arrow.style.cssText = 'font-size:12px;color:var(--muted);'; arrow.textContent = '→';
+      const sel = document.createElement('select');
+      sel.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:12px;color:var(--text);font-family:inherit;outline:none;';
+      DIRS.forEach(function(d) { const o = document.createElement('option'); o.value = d; o.textContent = d; if (d === c.dir) o.selected = true; sel.appendChild(o); });
+      sel.onchange = function() { working[idx].dir = sel.value; };
+      const del = document.createElement('button'); del.textContent = '✕';
+      del.style.cssText = 'background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;';
+      del.onclick = function() { working.splice(idx, 1); renderRows(); };
+      row.appendChild(lead); row.appendChild(term); row.appendChild(arrow); row.appendChild(sel); row.appendChild(del);
+      rowsWrap.appendChild(row);
+    });
+  }
+  renderRows();
+
+  const addBtn = document.createElement('button'); addBtn.textContent = '+ Add convention';
+  addBtn.style.cssText = 'align-self:flex-start;background:transparent;border:1px dashed var(--border);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text);';
+  addBtn.onclick = function() { working.push({ term: '', dir: 'NB' }); renderRows(); };
+  box.appendChild(addBtn);
+
+  const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:4px;';
+  const resetBtn = document.createElement('button'); resetBtn.textContent = 'Reset to default';
+  resetBtn.style.cssText = 'background:transparent;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;';
+  resetBtn.onclick = function() { working = expDefaultConventions(); renderRows(); };
+  const right = document.createElement('div'); right.style.cssText = 'display:flex;gap:10px;';
+  const cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+  cancel.style.cssText = 'background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--text);';
+  cancel.onclick = function() { modal.remove(); };
+  const save = document.createElement('button'); save.textContent = 'Save conventions';
+  save.style.cssText = 'background:var(--accent2);border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#fff;cursor:pointer;';
+  save.onclick = function() {
+    const cleaned = working.map(function(c) { return { term: (c.term || '').trim(), dir: c.dir }; }).filter(function(c) { return c.term && c.dir; });
+    const p = getActiveProject(); if (p) { p.conventions = cleaned; updateProject(p); }
+    modal.remove();
+    expToast('Conventions saved');
+  };
+  right.appendChild(cancel); right.appendChild(save);
+  actions.appendChild(resetBtn); actions.appendChild(right);
+  box.appendChild(actions);
+
+  modal.appendChild(box);
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
 // Builds/refreshes the AI Verify panel inside the verify-right column.
 function expRenderPanel() {
   const host = document.querySelector('#screen-verify .verify-right');
@@ -2147,11 +2217,17 @@ function expRenderPanel() {
   const keyLabel = document.createElement('span');
   keyLabel.style.cssText = 'font-size:12px;color:var(--muted);';
   keyLabel.textContent = hasKey ? '🔑 API key set' : '⚠ No API key';
+  const btnGroup = document.createElement('div'); btnGroup.style.cssText = 'display:flex;gap:6px;';
+  const convBtn = document.createElement('button');
+  convBtn.style.cssText = 'background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text);';
+  convBtn.textContent = '⚙ Conventions';
+  convBtn.onclick = function() { expEditConventions(); };
   const changeKeyBtn = document.createElement('button');
   changeKeyBtn.style.cssText = 'background:transparent;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text);';
   changeKeyBtn.textContent = hasKey ? 'Change key' : 'Set key';
   changeKeyBtn.onclick = function() { expPromptApiKey(); };
-  keyStatus.appendChild(keyLabel); keyStatus.appendChild(changeKeyBtn);
+  btnGroup.appendChild(convBtn); btnGroup.appendChild(changeKeyBtn);
+  keyStatus.appendChild(keyLabel); keyStatus.appendChild(btnGroup);
   panel.appendChild(keyStatus);
 
   const btn = document.createElement('button');
@@ -2236,10 +2312,33 @@ async function expCallClaude(i) {
   }
 }
 
+// Default corridor convention: outbound = NB, inbound = SB (perpendicular EB/WB
+// follow from the narrative directly). Editable per project.
+function expDefaultConventions() {
+  return [ { term: 'outbound', dir: 'NB' }, { term: 'inbound', dir: 'SB' } ];
+}
+function expGetConventions(proj) {
+  if (proj && Array.isArray(proj.conventions)) return proj.conventions;
+  return expDefaultConventions();
+}
+function expConventionLines(proj) {
+  const conv = expGetConventions(proj).filter(function(c) { return c && c.term && c.dir; });
+  if (!conv.length) return [];
+  const lines = ['', 'ROADWAY CONVENTIONS (defined by the analyst for this corridor — apply these):'];
+  conv.forEach(function(c) {
+    lines.push('- When the narrative describes travel as "' + c.term + '", the compass direction is ' + c.dir + '.');
+  });
+  lines.push('Use these to translate relative terms in the narrative (e.g. "inbound"/"outbound") into NB/SB/EB/WB.');
+  lines.push('If the narrative gives only a relative term NOT covered by a convention and you cannot otherwise');
+  lines.push('determine the compass direction, set that unit\'s verdict to "unknown" rather than guessing.');
+  return lines;
+}
+
 function expBuildSystemPrompt() {
   const types = getCollisionTypeOptions();
   const standard = ['Rear-end','Angle','Head-on','Sideswipe','Opposing Left Turn','Backing','Single Vehicle'];
   const vocab = Array.from(new Set(standard.concat(types))).join(', ');
+  const convLines = expConventionLines(getActiveProject());
   return [
     'You are a crash-report verification assistant for a traffic-records analyst.',
     'You are given an officer\'s free-text narrative plus fields a parser already extracted.',
@@ -2267,7 +2366,8 @@ function expBuildSystemPrompt() {
     '- collisionType: EXACTLY one item from this list: ' + vocab + '. No new types; pick the closest.',
     '- intersection: just the cross-streets / location, e.g. "N BROADWAY & W 7TH ST". No extra prose.',
     '- notes: ONE short, terse, fault-oriented sentence (max ~20 words). e.g. "U1 failed to yield to U2".',
-    '    Good note: "U1 ran red light, struck U2". Bad note: a long multi-clause dump of every detail.',
+    '    Good note: "U1 ran red light, struck U2". Bad note: a long multi-clause dump of every detail.'
+  ].concat(convLines).concat([
     '',
     'Respond with JSON ONLY, no prose outside it, in exactly this shape:',
     '{',
@@ -2277,7 +2377,7 @@ function expBuildSystemPrompt() {
     '}',
     'Include an entry for every field listed in the user message under "FIELDS TO VERIFY". Do not add fields that are not listed.',
     'fieldKey is one of: intersection, collisionType, u1, u2, u3, u4, notes.'
-  ].join('\n');
+  ]).join('\n');
 }
 
 function expBuildUserMessage(row, narrative) {
