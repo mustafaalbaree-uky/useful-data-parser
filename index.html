@@ -1449,20 +1449,75 @@ function inferNotesFallback(units) {
   return '';
 }
 
+// Groups of collision-type names that mean the same thing. Used to avoid
+// flagging a "mismatch" when the algorithm's label is just a synonym/abbrev
+// of what the police wrote (e.g. OLT == Opposing Left Turn).
+const TYPE_SYNONYMS = [
+  ['olt', 'opposing left turn', 'opposing leftturn', 'left turn opposing'],
+  ['rear end', 'rear-end', 'rear ended'],
+  ['head on', 'head-on', 'headon'],
+  ['angle', 'angular'],
+  ['sideswipe', 'side swipe'],
+];
+function typesMatch(a, b) {
+  const norm = function(s) { return String(s || '').toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim(); };
+  a = norm(a); b = norm(b);
+  if (!a || !b) return true;            // missing data → don't flag
+  if (a.includes(b) || b.includes(a)) return true;
+  for (const grp of TYPE_SYNONYMS) {
+    const inA = grp.some(function(x){ return a.includes(x) || x.includes(a); });
+    const inB = grp.some(function(x){ return b.includes(x) || x.includes(b); });
+    if (inA && inB) return true;
+  }
+  return false;
+}
+
+// The officer's narrative is the strongest signal. Pull an explicit fault
+// statement (which unit + what they did) straight from the prose when present.
+function detectNarrativeFault(narrative) {
+  if (!narrative) return null;
+  const N = narrative.replace(/\s+/g, ' ');
+  let m;
+  // "Unit 1 ... ran the/a red (traffic) light" / "ran the red"
+  m = N.match(/\bunit\s*(\d+)[^.]*?\bran\b[^.]*?\bred\b/i);
+  if (m) return { unit: parseInt(m[1], 10), note: 'ran red light', kind: 'signal' };
+  // "Unit 1 ... disregarded the signal / traffic light / traffic control"
+  m = N.match(/\bunit\s*(\d+)[^.]*?\bdisregard(?:ed)?\b[^.]*?\b(?:signal|light|traffic control|stop)/i);
+  if (m) return { unit: parseInt(m[1], 10), note: 'ran red light', kind: 'signal' };
+  // "Unit 1 ... ran the stop sign"
+  m = N.match(/\bunit\s*(\d+)[^.]*?\bran\b[^.]*?\bstop sign\b/i);
+  if (m) return { unit: parseInt(m[1], 10), note: 'ran stop sign', kind: 'signal' };
+  // "Unit 1 ... failed to yield"
+  m = N.match(/\bunit\s*(\d+)[^.]*?\bfailed to yield\b/i);
+  if (m) return { unit: parseInt(m[1], 10), note: 'failed to yield', kind: 'yield' };
+  return null;
+}
+
 // ── Direction-aware collision inference ───────────────────────────────────────
-function inferCollisionInfo(units, reportedType) {
+// ctx: { reportedType, narrative, mainText }
+function inferCollisionInfo(units, ctx) {
+  ctx = ctx || {};
+  const reportedType = ctx.reportedType || '';
+  const narrative = ctx.narrative || '';
+  const mainText = ctx.mainText || '';
+  const signalized = /STOP\s*&?\s*GO|TRAFFIC\s*SIGNAL|FLASHING\s*SIGNAL|\bSIGNAL\b/i.test(mainText)
+    || /\bred (?:traffic )?light\b|\btraffic signal\b/i.test(narrative);
+
   const sorted = [...units].filter(u => u.unitNum).sort((a,b) => a.unitNum - b.unitNum);
   if (!sorted.length) return { notes: '', inferredType: '' };
 
   const withDir = sorted.filter(u => u.overrideDir);
   const rel = withDir.length >= 2 ? dirRelationship(withDir[0].overrideDir, withDir[1].overrideDir) : 'UNKNOWN';
 
+  // Officer's account (preferred for the note text)
+  const nf = detectNarrativeFault(narrative);
+  const signalViolation = nf && nf.kind === 'signal';
+
   let notes = '';
   let inferredType = '';
 
   if (rel === 'TANGENTIAL') {
     inferredType = 'Angle';
-    // One unit ignored traffic control or was inattentive → ran red light
     const faultUnit = sorted.find(function(u) {
       const codes = u.factors.map(f => f.code);
       return codes.includes('03') || codes.includes('14');
@@ -1486,7 +1541,12 @@ function inferCollisionInfo(units, reportedType) {
   } else if (rel === 'OPPOSITE') {
     const ltUnit = sorted.find(u => /MAKING LEFT TURN/i.test(u.action));
     const straightUnit = sorted.find(u => /GOING STRAIGHT/i.test(u.action));
-    if (ltUnit && straightUnit) {
+    if (signalViolation) {
+      // A red-light / stop-sign violation at an intersection is an angle /
+      // perpendicular crash — NOT head-on, even though travel dirs read opposite.
+      inferredType = 'Angle';
+      notes = inferNotesFallback(sorted);
+    } else if (ltUnit && straightUnit) {
       inferredType = 'OLT';
       const strCodes = straightUnit.factors.map(f => f.code);
       if (strCodes.includes('03') || strCodes.includes('14')) {
@@ -1495,7 +1555,11 @@ function inferCollisionInfo(units, reportedType) {
         notes = 'U' + ltUnit.unitNum + ' failed to yield for U' + straightUnit.unitNum;
       }
     } else {
-      inferredType = 'Head-on';
+      // Only claim Head-on with real evidence: both units going straight AND
+      // no signal context. Otherwise stay silent (don't introduce a bad flag).
+      const bothStraight = sorted.filter(u => /GOING STRAIGHT/i.test(u.action)).length >= 2;
+      if (bothStraight && !signalized) inferredType = 'Head-on';
+      else inferredType = '';
       notes = inferNotesFallback(sorted);
     }
 
@@ -1503,16 +1567,13 @@ function inferCollisionInfo(units, reportedType) {
     notes = inferNotesFallback(sorted);
   }
 
-  // Flag if inferred type doesn't match police-reported type
-  if (inferredType && reportedType) {
-    // Normalize: lowercase, strip hyphens and extra spaces for comparison
-    const norm = function(s) { return s.toLowerCase().replace(/[-\s]+/g, ' ').trim(); };
-    const rep = norm(reportedType);
-    const inf = norm(inferredType);
-    if (!rep.includes(inf) && !inf.includes(rep)) {
-      const flag = '(algorithm detected ' + inferredType + ')';
-      notes = notes ? notes + ' ' + flag : flag;
-    }
+  // Officer's explicit narrative account wins for the note text.
+  if (nf) notes = 'U' + nf.unit + ' ' + nf.note;
+
+  // Flag if inferred type doesn't match police-reported type (synonym-aware)
+  if (inferredType && reportedType && !typesMatch(inferredType, reportedType)) {
+    const flag = '(algorithm detected ' + inferredType + ')';
+    notes = notes ? notes + ' ' + flag : flag;
   }
 
   return { notes, inferredType };
@@ -1614,7 +1675,8 @@ async function processPdfForProject(file, statusEl) {
     let coords = parseCoordText(annotVals);
     if (!coords) coords = extractGps(rep.mainPage.text);
     const parsedUnits = rep.unitPages.map(p => parseUnitPage(p.text)).filter(u => u.unitNum);
-    const { notes } = inferCollisionInfo(parsedUnits, r.type);
+    const narrText = rep.narrativePages.map(p => p.text).join('\n\n');
+    const { notes } = inferCollisionInfo(parsedUnits, { reportedType: r.type, narrative: narrText, mainText: rep.mainPage.text });
     const u = n => (parsedUnits.find(x => x.unitNum === n) || {}).overrideDir || '';
     rows.push(['', '', r.date, r.day, r.time, r.type, r.weatherRoad, u(1), u(2), u(3), u(4), r.injuries, r.units, notes, String(rep.mainPage.pdfPageNum), coords]);
     narrative.push(trimNarrative(rep.narrativePages.map(p => p.text).join('\n\n')));
