@@ -798,6 +798,8 @@ function clearTable() {
 
 // ── Verify view ───────────────────────────────────────────────────────────────
 function renderVerifyView() {
+  const _scrollEl = document.scrollingElement || document.documentElement;
+  const _scrollY = _scrollEl.scrollTop;
   const proj = getActiveProject();
   if (!proj || !proj.rows.length) { showScreen('table'); return; }
   const i = APP.verifyIndex;
@@ -923,6 +925,9 @@ function renderVerifyView() {
 
   // Auto-render the detected diagram page under supporting text
   renderDiagramForEntry();
+
+  // Restore scroll position so verifying a field doesn't jump the page
+  _scrollEl.scrollTop = _scrollY;
 }
 
 function buildDiagramCard(canvas, pageNum) {
