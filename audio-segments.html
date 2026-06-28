@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1115">
+<title>Segment Transcriber</title>
+<style>
+:root {
+  --bg: #0f1115; --panel: #181b22; --panel2: #1e222b; --border: #2a2f3a;
+  --text: #e6e9ef; --muted: #9aa3b2; --accent: #5b9dff; --accent2: #3a7bd5;
+  --rec: #ff4d4f; --ok: #46c08a; --warn: #e0a35c; --err: #e05c5c;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+  overflow: hidden;
+}
+button { font-family: inherit; cursor: pointer; }
+
+/* ---------- Setup screen ---------- */
+#setup {
+  display: flex; flex-direction: column; gap: 18px;
+  max-width: 480px; margin: 0 auto; padding: 28px 22px;
+  height: 100%; justify-content: center;
+}
+#setup h1 { font-size: 22px; font-weight: 800; }
+#setup p.sub { color: var(--muted); font-size: 14px; margin-top: -10px; }
+.field label { display: block; font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.field input, .field select {
+  width: 100%; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  font-size: 16px; outline: none;
+}
+.field input:focus, .field select:focus { border-color: var(--accent2); }
+.start-btn {
+  background: var(--accent2); color: #fff; border: none; border-radius: 12px;
+  padding: 16px; font-size: 17px; font-weight: 700; margin-top: 4px;
+}
+.start-btn:disabled { opacity: .5; }
+.hint { font-size: 12px; color: var(--muted); }
+.hint a { color: var(--accent); }
+.err-box { background: rgba(224,92,92,.12); border: 1px solid var(--err);
+  color: #ffb4b4; border-radius: 10px; padding: 12px 14px; font-size: 13px;
+  white-space: pre-wrap; display: none; }
+.err-box.show { display: block; }
+
+/* ---------- Recorder screen ---------- */
+#recorder { display: none; flex-direction: column; height: 100%; }
+#recorder.active { display: flex; }
+
+.bar {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+.bar .title { font-size: 14px; font-weight: 700; flex: 1; }
+.rec-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--rec);
+  animation: pulse 1.1s infinite; flex: none; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+.timer { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted);
+  font-weight: 600; }
+.icon-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--muted);
+  font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 8px; }
+
+/* transcript */
+.transcript-wrap { flex: 1; overflow-y: auto; padding: 18px 18px 8px; -webkit-overflow-scrolling: touch; }
+.transcript { font-size: 18px; line-height: 1.7; word-wrap: break-word; }
+.seg {
+  display: inline; border-radius: 6px; padding: 1px 3px; margin: 0 1px;
+  transition: background .15s, box-shadow .15s; cursor: pointer;
+}
+.seg.done { color: var(--text); }
+.seg.empty { color: var(--muted); font-style: italic; }
+.seg.recording { background: rgba(255,77,79,.14); box-shadow: inset 0 0 0 1px rgba(255,77,79,.5); }
+.seg.transcribing { color: var(--muted); }
+.seg.error { color: var(--err); background: rgba(224,92,92,.10); text-decoration: underline wavy var(--err); }
+.seg.confirmed { background: rgba(70,192,138,.10); box-shadow: inset 0 0 0 1px rgba(70,192,138,.35); }
+.seg.cursor { box-shadow: inset 0 0 0 2px var(--accent); }
+.seg.selected { background: rgba(91,157,255,.22); box-shadow: inset 0 0 0 2px var(--accent); }
+.seg .tag { font-size: 11px; vertical-align: super; opacity: .7; margin-left: 1px; }
+.shimmer {
+  display: inline-block; min-width: 36px; height: 12px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--panel2) 25%, var(--border) 50%, var(--panel2) 75%);
+  background-size: 200% 100%; animation: sh 1.1s infinite; vertical-align: middle;
+}
+@keyframes sh { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.plus-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; background: var(--panel2);
+  border: 1px solid var(--border); color: var(--accent); font-size: 20px;
+  font-weight: 600; margin-left: 6px; vertical-align: middle; line-height: 0;
+}
+.empty-hint { color: var(--muted); font-style: italic; font-size: 15px; }
+
+/* selection action popover */
+.seg-actions {
+  display: none; gap: 10px; align-items: center;
+  background: var(--panel); border-top: 1px solid var(--border);
+  padding: 10px 16px;
+}
+.seg-actions.show { display: flex; }
+.seg-actions .lbl { font-size: 12px; color: var(--muted); flex: 1; font-weight: 600; }
+.seg-actions button { border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 14px; font-size: 13px; font-weight: 700; background: var(--panel2); color: var(--text); }
+.seg-actions button.confirm { background: var(--ok); color: #06281b; border-color: var(--ok); }
+.seg-actions button.edit { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.seg-actions button.retry { background: var(--warn); color: #2a1c06; border-color: var(--warn); }
+.seg-actions button.close { background: none; color: var(--muted); border: none; font-size: 18px; padding: 4px 8px; }
+
+/* controls */
+.controls {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  padding: 14px 16px calc(14px + var(--safe-bottom));
+  background: var(--panel); border-top: 1px solid var(--border);
+}
+.ctrl {
+  border: none; border-radius: 14px; padding: 22px 12px; font-size: 17px;
+  font-weight: 800; color: #fff; display: flex; flex-direction: column;
+  align-items: center; gap: 3px; user-select: none; touch-action: manipulation;
+}
+.ctrl .big { font-size: 26px; line-height: 1; }
+.ctrl .small { font-size: 11px; font-weight: 600; opacity: .85; }
+.ctrl.left { background: var(--warn); color: #2a1c06; }
+.ctrl.right { background: var(--accent2); }
+.ctrl:active { transform: scale(.97); }
+.ctrl:disabled { opacity: .4; }
+.controls .finish {
+  grid-column: 1 / -1; background: var(--panel2); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 12px; padding: 13px;
+  font-size: 14px; font-weight: 700;
+}
+.controls .finish.stopped { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(160px + var(--safe-bottom));
+  transform: translateX(-50%); background: #000; color: #fff;
+  padding: 9px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+  opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; white-space: nowrap;
+}
+.toast.show { opacity: .92; }
+</style>
+</head>
+<body>
+
+<!-- ===================== SETUP ===================== -->
+<div id="setup">
+  <div>
+    <h1>Segment Transcriber</h1>
+    <p class="sub">Record, slice on the fly, transcribe each piece with Groq Whisper.</p>
+  </div>
+  <div class="field">
+    <label for="apiKey">Groq API Key</label>
+    <input id="apiKey" type="password" placeholder="gsk_..." autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p class="hint">Stored only in this browser (localStorage). Get one at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.</p>
+  </div>
+  <div class="field">
+    <label for="model">Model</label>
+    <select id="model">
+      <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (fastest)</option>
+      <option value="whisper-large-v3">whisper-large-v3 (most accurate)</option>
+      <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en (English-only, fast)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="lang">Language (optional)</label>
+    <input id="lang" type="text" placeholder="e.g. en — leave blank to auto-detect" autocapitalize="off" spellcheck="false">
+  </div>
+  <button id="startBtn" class="start-btn">● Start Recording</button>
+  <div id="setupErr" class="err-box"></div>
+</div>
+
+<!-- ===================== RECORDER ===================== -->
+<div id="recorder">
+  <div class="bar">
+    <span id="recDot" class="rec-dot"></span>
+    <span class="title">Segment <span id="curNum">1</span> · <span id="recState">recording</span></span>
+    <span id="timer" class="timer">0:00</span>
+    <button id="settingsBtn" class="icon-btn">Key</button>
+  </div>
+
+  <div class="transcript-wrap" id="transcriptWrap">
+    <div class="transcript" id="transcript"></div>
+  </div>
+
+  <div class="seg-actions" id="segActions">
+    <span class="lbl" id="segActionsLbl">Segment</span>
+    <button class="retry" id="retryBtn" style="display:none">Retry</button>
+    <button class="confirm" id="confirmBtn">Confirm</button>
+    <button class="edit" id="editBtn">Edit</button>
+    <button class="close" id="closeActionsBtn">✕</button>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl left" id="leftBtn"><span class="big">◀</span><span class="small">Redo previous</span></button>
+    <button class="ctrl right" id="rightBtn"><span class="big">▶</span><span class="small">Next segment</span></button>
+    <button class="finish" id="finishBtn">■ Finish &amp; stop recording</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ---------------- State ---------------- */
+const LS_KEY = "stx_groq_key";
+const LS_MODEL = "stx_model";
+const LS_LANG = "stx_lang";
+
+let apiKey = "";
+let modelName = "whisper-large-v3-turbo";
+let language = "";
+
+let stream = null;
+let recorder = null;
+let chunks = [];
+let mimeType = "";
+let fileExt = "webm";
+
+let segments = [];        // {id, blob, text, status, error, reqSeq, confirmed}
+let cursor = -1;          // index currently being recorded into
+let recordingIndex = -1;  // index the live recorder writes to
+let recording = false;
+let transitioning = false;
+let pendingNav = null;
+let segSeq = 0;
+let selectedIndex = -1;
+
+let segStartTime = 0;
+let timerInterval = null;
+
+/* ---------------- DOM ---------------- */
+const $ = (id) => document.getElementById(id);
+const setupEl = $("setup"), recorderEl = $("recorder");
+const apiKeyInput = $("apiKey"), modelSelect = $("model"), langInput = $("lang");
+const startBtn = $("startBtn"), setupErr = $("setupErr");
+const transcriptEl = $("transcript"), transcriptWrap = $("transcriptWrap");
+const curNumEl = $("curNum"), recStateEl = $("recState"), timerEl = $("timer"), recDot = $("recDot");
+const leftBtn = $("leftBtn"), rightBtn = $("rightBtn"), finishBtn = $("finishBtn");
+const segActions = $("segActions"), segActionsLbl = $("segActionsLbl");
+const confirmBtn = $("confirmBtn"), editBtn = $("editBtn"), retryBtn = $("retryBtn"), closeActionsBtn = $("closeActionsBtn");
+const settingsBtn = $("settingsBtn"), toastEl = $("toast");
+
+/* ---------------- Setup ---------------- */
+apiKeyInput.value = localStorage.getItem(LS_KEY) || "";
+modelSelect.value = localStorage.getItem(LS_MODEL) || "whisper-large-v3-turbo";
+langInput.value = localStorage.getItem(LS_LANG) || "";
+
+startBtn.addEventListener("click", startSession);
+settingsBtn.addEventListener("click", backToSetup);
+
+function showSetupError(msg) {
+  setupErr.textContent = msg;
+  setupErr.classList.add("show");
+}
+
+async function startSession() {
+  apiKey = apiKeyInput.value.trim();
+  modelName = modelSelect.value;
+  language = langInput.value.trim();
+  setupErr.classList.remove("show");
+
+  if (!apiKey) { showSetupError("Please enter your Groq API key."); return; }
+
+  localStorage.setItem(LS_KEY, apiKey);
+  localStorage.setItem(LS_MODEL, modelName);
+  localStorage.setItem(LS_LANG, language);
+
+  startBtn.disabled = true;
+  startBtn.textContent = "Requesting mic…";
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    startBtn.disabled = false;
+    startBtn.textContent = "● Start Recording";
+    showSetupError("Microphone access denied or unavailable.\n" + e);
+    return;
+  }
+
+  mimeType = pickMime();
+  fileExt = extForMime(mimeType);
+
+  // reset state
+  segments = [];
+  cursor = -1; recordingIndex = -1; selectedIndex = -1;
+  recording = true; transitioning = false; pendingNav = null;
+
+  setupEl.style.display = "none";
+  recorderEl.classList.add("active");
+
+  // create first segment and start recording into it
+  const idx = newSegment();
+  cursor = idx;
+  startRecorderInto(idx);
+  render();
+
+  startBtn.disabled = false;
+  startBtn.textContent = "● Start Recording";
+}
+
+function backToSetup() {
+  // pause recording, return to key/model screen without losing transcript text
+  if (recording && recorder && recorder.state !== "inactive") {
+    try { recorder.stop(); } catch (e) {}
+  }
+  recording = false;
+  stopTimer();
+  recorderEl.classList.remove("active");
+  setupEl.style.display = "flex";
+  apiKeyInput.value = apiKey;
+}
+
+function pickMime() {
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus", "audio/ogg"];
+  if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+    for (const c of candidates) if (MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return ""; // let the browser choose its default
+}
+function extForMime(m) {
+  if (!m) return "webm";
+  if (m.includes("mp4")) return "m4a";
+  if (m.includes("ogg")) return "ogg";
+  if (m.includes("webm")) return "webm";
+  return "webm";
+}
+
+/* ---------------- Segment helpers ---------------- */
+function newSegment(atEnd) {
+  const seg = { id: ++segSeq, blob: null, text: "", status: "empty", error: "", reqSeq: 0, confirmed: false };
+  if (atEnd === false) segments.unshift(seg); else segments.push(seg);
+  return segments.indexOf(seg);
+}
+
+function nextOpenIndex(from) {
+  for (let j = from + 1; j < segments.length; j++) if (!segments[j].confirmed) return j;
+  return segments.length; // signal: create a new one
+}
+function prevOpenIndex(from) {
+  for (let j = from - 1; j >= 0; j--) if (!segments[j].confirmed) return j;
+  return -1;
+}
+
+/* ---------------- Recorder control ---------------- */
+function startRecorderInto(idx) {
+  if (!stream) return;
+  recordingIndex = idx;
+  const seg = segments[idx];
+  seg.status = "recording";
+  seg.reqSeq++;           // invalidate any in-flight transcription for this slot
+  seg.error = "";
+  chunks = [];
+
+  try {
+    recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  } catch (e) {
+    recorder = new MediaRecorder(stream);
+  }
+  recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = onRecorderStop;
+  recorder.start();
+
+  segStartTime = Date.now();
+  startTimer();
+}
+
+function onRecorderStop() {
+  const idx = recordingIndex;
+  const blob = new Blob(chunks, { type: mimeType || (chunks[0] && chunks[0].type) || "audio/webm" });
+  const seg = segments[idx];
+
+  if (blob.size > 0) {
+    seg.blob = blob;
+    seg.status = "transcribing";
+    transcribe(idx);
+  } else {
+    seg.status = seg.text ? "done" : "empty";
+  }
+
+  const fn = pendingNav; pendingNav = null;
+  if (fn) fn();
+  transitioning = false;
+  render();
+}
+
+/* Stop current take, then run a navigation function (inside onstop). */
+function endCurrentAndThen(navFn) {
+  if (!recording || transitioning) return;
+  transitioning = true;
+  pendingNav = navFn;
+  if (recorder && recorder.state !== "inactive") {
+    recorder.stop();
+  } else {
+    onRecorderStop();
+  }
+}
+
+/* ---------------- Transcription (Groq Whisper) ---------------- */
+async function transcribe(idx) {
+  const seg = segments[idx];
+  const mySeq = seg.reqSeq;       // capture; ignore result if the slot is re-recorded
+  const myBlob = seg.blob;
+
+  const fd = new FormData();
+  fd.append("file", myBlob, "segment." + fileExt);
+  fd.append("model", modelName);
+  fd.append("response_format", "json");
+  fd.append("temperature", "0");
+  if (language) fd.append("language", language);
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + apiKey },
+      body: fd,
+    });
+    if (seg.reqSeq !== mySeq) return; // stale — segment was re-recorded
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.json()).error?.message || ""; } catch (e) { detail = await res.text().catch(() => ""); }
+      throw new Error("HTTP " + res.status + (detail ? " — " + detail : ""));
+    }
+    const data = await res.json();
+    if (seg.reqSeq !== mySeq) return;
+    seg.text = (data.text || "").trim();
+    seg.status = "done";
+    seg.error = "";
+  } catch (e) {
+    if (seg.reqSeq !== mySeq) return;
+    seg.status = "error";
+    seg.error = (e && e.message) ? e.message : String(e);
+    if (e instanceof TypeError) {
+      seg.error = "Network/CORS error reaching Groq. " + seg.error;
+    }
+  }
+  render();
+}
+
+/* ---------------- Navigation actions ---------------- */
+// Right: save current take -> go to next open segment (or append a new one) and record.
+rightBtn.addEventListener("click", () => {
+  closeActions();
+  endCurrentAndThen(() => {
+    let target = nextOpenIndex(cursor);
+    if (target === segments.length) target = newSegment();
+    cursor = target;
+    startRecorderInto(cursor);
+  });
+});
+
+// Left: save current take -> step back to previous open segment to redo it.
+leftBtn.addEventListener("click", () => {
+  closeActions();
+  const target = prevOpenIndex(cursor);
+  if (target === -1) { toast("No earlier segment to redo"); return; }
+  endCurrentAndThen(() => {
+    cursor = target;
+    startRecorderInto(cursor); // next press overwrites this slot = redo
+  });
+});
+
+// Finish: save current take and stop.
+finishBtn.addEventListener("click", () => {
+  if (recording) {
+    closeActions();
+    endCurrentAndThen(() => {
+      recording = false;
+      stopTimer();
+      finishBtn.textContent = "✓ Stopped — copy / resume below";
+      finishBtn.classList.add("stopped");
+      render();
+    });
+  } else {
+    // resume by appending a fresh segment
+    recording = true;
+    finishBtn.textContent = "■ Finish & stop recording";
+    finishBtn.classList.remove("stopped");
+    const idx = newSegment();
+    cursor = idx;
+    startRecorderInto(idx);
+    render();
+  }
+});
+
+/* ---------------- Segment selection / actions ---------------- */
+transcriptEl.addEventListener("click", (e) => {
+  const plus = e.target.closest(".plus-chip");
+  if (plus) { appendAndRecord(); return; }
+  const segEl = e.target.closest(".seg");
+  if (!segEl) { closeActions(); return; }
+  const idx = parseInt(segEl.dataset.index, 10);
+  if (isNaN(idx)) return;
+  selectSegment(idx);
+});
+
+function selectSegment(idx) {
+  selectedIndex = idx;
+  const seg = segments[idx];
+  segActionsLbl.textContent = "Segment " + (idx + 1) + (seg.confirmed ? " · finalized" : "");
+  confirmBtn.textContent = seg.confirmed ? "Unfinalize" : "Confirm";
+  retryBtn.style.display = (seg.status === "error") ? "" : "none";
+  segActions.classList.add("show");
+  render();
+}
+function closeActions() {
+  selectedIndex = -1;
+  segActions.classList.remove("show");
+  render();
+}
+closeActionsBtn.addEventListener("click", closeActions);
+
+confirmBtn.addEventListener("click", () => {
+  if (selectedIndex < 0) return;
+  const seg = segments[selectedIndex];
+  seg.confirmed = !seg.confirmed;
+  toast(seg.confirmed ? "Finalized — nav will skip it" : "Unfinalized");
+  closeActions();
+});
+
+editBtn.addEventListener("click", () => {
+  if (selectedIndex < 0) return;
+  const target = selectedIndex;
+  closeActions();
+  if (!recording) {
+    recording = true;
+    finishBtn.textContent = "■ Finish & stop recording";
+    finishBtn.classList.remove("stopped");
+    cursor = target;
+    startRecorderInto(cursor);
+    render();
+    return;
+  }
+  endCurrentAndThen(() => {
+    cursor = target;
+    startRecorderInto(cursor); // jump here and redo it
+  });
+});
+
+retryBtn.addEventListener("click", () => {
+  if (selectedIndex < 0) return;
+  const seg = segments[selectedIndex];
+  if (!seg.blob) { toast("No audio to retry"); return; }
+  seg.reqSeq++;
+  seg.status = "transcribing";
+  closeActions();
+  transcribe(selectedIndex);
+});
+
+function appendAndRecord() {
+  if (!recording) {
+    recording = true;
+    finishBtn.textContent = "■ Finish & stop recording";
+    finishBtn.classList.remove("stopped");
+    const idx = newSegment();
+    cursor = idx;
+    startRecorderInto(idx);
+    render();
+    return;
+  }
+  closeActions();
+  endCurrentAndThen(() => {
+    const idx = newSegment();
+    cursor = idx;
+    startRecorderInto(idx);
+  });
+}
+
+/* ---------------- Timer ---------------- */
+function startTimer() {
+  stopTimer();
+  timerInterval = setInterval(updateTimer, 250);
+  updateTimer();
+}
+function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+function updateTimer() {
+  const s = Math.floor((Date.now() - segStartTime) / 1000);
+  const m = Math.floor(s / 60);
+  timerEl.textContent = m + ":" + String(s % 60).padStart(2, "0");
+}
+
+/* ---------------- Render ---------------- */
+function render() {
+  // header
+  curNumEl.textContent = (cursor >= 0 ? cursor + 1 : "—");
+  if (!recording) { recStateEl.textContent = "stopped"; recDot.style.visibility = "hidden"; }
+  else {
+    recDot.style.visibility = "visible";
+    const cur = segments[cursor];
+    recStateEl.textContent = cur ? cur.status : "recording";
+  }
+
+  // transcript
+  transcriptEl.innerHTML = "";
+  if (segments.length === 0) {
+    const hint = document.createElement("span");
+    hint.className = "empty-hint";
+    hint.textContent = "Recording will appear here…";
+    transcriptEl.appendChild(hint);
+    return;
+  }
+
+  segments.forEach((seg, i) => {
+    const span = document.createElement("span");
+    span.className = "seg " + seg.status;
+    if (i === cursor && recording) span.classList.add("cursor");
+    if (seg.confirmed) span.classList.add("confirmed");
+    if (i === selectedIndex) span.classList.add("selected");
+    span.dataset.index = i;
+
+    if (seg.status === "transcribing") {
+      if (seg.text) {
+        span.appendChild(document.createTextNode(seg.text + " "));
+      }
+      const sh = document.createElement("span");
+      sh.className = "shimmer";
+      span.appendChild(sh);
+    } else if (seg.status === "recording") {
+      span.appendChild(document.createTextNode(seg.text ? seg.text : "● recording"));
+    } else if (seg.status === "empty") {
+      span.textContent = "(empty)";
+    } else if (seg.status === "error") {
+      span.textContent = (seg.text ? seg.text + " " : "") + "⚠ tap to retry";
+    } else { // done
+      span.textContent = seg.text || "(no speech)";
+    }
+
+    if (seg.confirmed) {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = "🔒";
+      span.appendChild(tag);
+    }
+
+    transcriptEl.appendChild(span);
+    transcriptEl.appendChild(document.createTextNode(" "));
+  });
+
+  // plus chip to append a brand-new segment
+  const plus = document.createElement("span");
+  plus.className = "plus-chip";
+  plus.textContent = "+";
+  plus.title = "Add a new segment";
+  transcriptEl.appendChild(plus);
+
+  // autoscroll to bottom while actively recording at the end
+  if (recording && cursor === segments.length - 1) {
+    transcriptWrap.scrollTop = transcriptWrap.scrollHeight;
+  }
+
+  // disable left when no earlier open segment
+  leftBtn.disabled = !recording || prevOpenIndex(cursor) === -1;
+  rightBtn.disabled = !recording;
+}
+
+/* ---------------- Misc ---------------- */
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1600);
+}
+
+// Desktop keyboard shortcuts for quick testing
+window.addEventListener("keydown", (e) => {
+  if (!recorderEl.classList.contains("active")) return;
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.key === "ArrowRight") { e.preventDefault(); rightBtn.click(); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); leftBtn.click(); }
+  else if (e.key === "+" || e.key === "=") { e.preventDefault(); appendAndRecord(); }
+});
+
+// Warn before leaving while recording
+window.addEventListener("beforeunload", (e) => {
+  if (recording) { e.preventDefault(); e.returnValue = ""; }
+});
+</script>
+</body>
+</html>
