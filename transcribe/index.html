@@ -72,8 +72,8 @@ button { font-family: inherit; cursor: pointer; }
 .transcript-wrap { flex: 1; overflow-y: auto; padding: 18px 18px 8px; -webkit-overflow-scrolling: touch; }
 .transcript { font-size: 18px; line-height: 1.7; word-wrap: break-word; white-space: pre-wrap; }
 .seg {
-  border-radius: 6px; padding: 1px 3px; margin: 0 1px;
-  transition: background .15s, box-shadow .15s; cursor: text; outline: none;
+  border-radius: 4px; padding: 0; margin: 0;
+  transition: background .15s, box-shadow .15s; cursor: pointer; outline: none;
 }
 .seg.done { color: var(--text); }
 .seg.empty { color: var(--muted); font-style: italic; }
@@ -100,17 +100,20 @@ button { font-family: inherit; cursor: pointer; }
 }
 .empty-hint { color: var(--muted); font-style: italic; font-size: 15px; }
 
-/* selection action popover */
+/* selection action popover — pinned, rides above the keyboard */
 .seg-actions {
   display: none; gap: 8px; align-items: center; flex-wrap: wrap;
   background: var(--panel); border-top: 1px solid var(--border); padding: 10px 14px;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 65;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.4);
 }
 .seg-actions.show { display: flex; }
 .seg-actions .lbl { font-size: 12px; color: var(--muted); flex-basis: 100%; font-weight: 600; }
 .seg-actions button { border: 1px solid var(--border); border-radius: 8px;
-  padding: 9px 13px; font-size: 13px; font-weight: 700; background: var(--panel2); color: var(--text); }
+  padding: 10px 13px; font-size: 13px; font-weight: 700; background: var(--panel2); color: var(--text); }
 .seg-actions button.confirm { background: var(--ok); color: #06281b; border-color: var(--ok); }
 .seg-actions button.edit { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.seg-actions button.text { background: var(--panel2); color: var(--accent); border-color: var(--accent2); }
 .seg-actions button.redo { background: var(--warn); color: #2a1c06; border-color: var(--warn); }
 .seg-actions button.format { background: var(--ai); color: #1c0a36; border-color: var(--ai); }
 .seg-actions button.close { background: none; color: var(--muted); border: none; font-size: 18px; padding: 4px 8px; margin-left: auto; }
@@ -191,10 +194,6 @@ button { font-family: inherit; cursor: pointer; }
       <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en (English-only, fast)</option>
     </select>
   </div>
-  <div class="field">
-    <label for="lang">Language (optional)</label>
-    <input id="lang" type="text" placeholder="e.g. en — leave blank to auto-detect" autocapitalize="off" spellcheck="false">
-  </div>
   <button id="startBtn" class="start-btn">● Start Recording</button>
   <div id="setupErr" class="err-box"></div>
 </div>
@@ -217,8 +216,9 @@ button { font-family: inherit; cursor: pointer; }
     <span class="lbl" id="segActionsLbl">Segment</span>
     <button class="redo" id="redoBtn">↻ Redo</button>
     <button class="format" id="formatBtn">✦ Format</button>
+    <button class="text" id="textBtn">⌨ Text</button>
     <button class="confirm" id="confirmBtn">Confirm</button>
-    <button class="edit" id="editBtn">Edit (re-record)</button>
+    <button class="edit" id="editBtn">Re-record</button>
     <button class="close" id="closeActionsBtn">✕</button>
   </div>
 
@@ -289,13 +289,13 @@ const segEls = new Map();   // id -> span element
 /* ---------------- DOM ---------------- */
 const $ = (id) => document.getElementById(id);
 const setupEl = $("setup"), recorderEl = $("recorder");
-const apiKeyInput = $("apiKey"), modelSelect = $("model"), langInput = $("lang");
+const apiKeyInput = $("apiKey"), modelSelect = $("model");
 const startBtn = $("startBtn"), setupErr = $("setupErr");
 const transcriptEl = $("transcript"), transcriptWrap = $("transcriptWrap");
 const curNumEl = $("curNum"), recStateEl = $("recState"), timerEl = $("timer"), recDot = $("recDot");
 const leftBtn = $("leftBtn"), rightBtn = $("rightBtn"), finishBtn = $("finishBtn");
 const segActions = $("segActions"), segActionsLbl = $("segActionsLbl");
-const confirmBtn = $("confirmBtn"), editBtn = $("editBtn"), redoBtn = $("redoBtn"), formatBtn = $("formatBtn"), closeActionsBtn = $("closeActionsBtn");
+const confirmBtn = $("confirmBtn"), editBtn = $("editBtn"), redoBtn = $("redoBtn"), formatBtn = $("formatBtn"), textBtn = $("textBtn"), closeActionsBtn = $("closeActionsBtn");
 const settingsBtn = $("settingsBtn"), copyBtn = $("copyBtn"), toastEl = $("toast");
 const settingsModal = $("settingsModal"), fmtModelSel = $("fmtModel"), fmtPromptEl = $("fmtPrompt");
 const copyAllBtn = $("copyAllBtn"), changeKeyBtn = $("changeKeyBtn"), clearAllBtn = $("clearAllBtn"), closeSettingsBtn = $("closeSettingsBtn");
@@ -314,7 +314,6 @@ transcriptEl.appendChild(plusChipEl);
 /* ---------------- Load saved settings ---------------- */
 apiKeyInput.value = localStorage.getItem(LS.key) || "";
 modelSelect.value = localStorage.getItem(LS.model) || "whisper-large-v3-turbo";
-langInput.value = localStorage.getItem(LS.lang) || "";
 fmtModel = localStorage.getItem(LS.fmtModel) || "llama-3.1-8b-instant";
 fmtPrompt = localStorage.getItem(LS.fmtPrompt) || DEFAULT_FMT_PROMPT;
 
@@ -326,13 +325,11 @@ function showSetupError(msg) { setupErr.textContent = msg; setupErr.classList.ad
 async function startSession() {
   apiKey = apiKeyInput.value.trim();
   modelName = modelSelect.value;
-  language = langInput.value.trim();
   setupErr.classList.remove("show");
   if (!apiKey) { showSetupError("Please enter your Groq API key."); return; }
 
   localStorage.setItem(LS.key, apiKey);
   localStorage.setItem(LS.model, modelName);
-  localStorage.setItem(LS.lang, language);
 
   startBtn.disabled = true; startBtn.textContent = "Requesting mic…";
   const ok = await ensureStream();
@@ -385,7 +382,7 @@ function newSegment() {
 function indexOfId(id) { return segments.findIndex((s) => s.id === id); }
 function nextOpenIndex(from) { for (let j = from + 1; j < segments.length; j++) if (!segments[j].confirmed) return j; return segments.length; }
 function prevOpenIndex(from) { for (let j = from - 1; j >= 0; j--) if (!segments[j].confirmed) return j; return -1; }
-function cleanText(t) { return (t || "").replace(/ /g, " ").replace(/[ \t]{2,}/g, " ").replace(/^[ \t]+|[ \t]+$/g, ""); }
+function cleanText(t) { return (t || "").replace(/[\u00A0\u202F]/g, " ").replace(/[ \t]{2,}/g, " ").replace(/^[ \t]+|[ \t]+$/g, ""); }
 
 /* ---------------- Recorder ---------------- */
 function startRecorderInto(idx) {
@@ -472,7 +469,7 @@ async function formatSegment(idx) {
     if (!res.ok) throw new Error(await errDetail(res));
     const data = await res.json();
     const out = (data.choices?.[0]?.message?.content || "").trim();
-    if (out) seg.text = out.replace(/ /g, " ");
+    if (out) seg.text = cleanText(out);
     seg.status = "done";
   } catch (e) {
     seg.status = "done";
@@ -518,6 +515,7 @@ transcriptWrap.addEventListener("click", (e) => {
   const segEl = e.target.closest(".seg");
   if (!segEl) { if (editingId === null) closeActions(); return; }
   const id = parseInt(segEl.dataset.id, 10);
+  if (editingId !== null && editingId !== id) saveEditing(); // switching segments saves the edit
   const i = indexOfId(id);
   if (i >= 0) showActionsFor(i);
 });
@@ -527,14 +525,50 @@ plusChipEl.addEventListener("click", (e) => { e.stopPropagation(); appendAndReco
 function showActionsFor(i) {
   selectedIndex = i;
   const seg = segments[i];
+  const editable = seg.status === "done" || seg.status === "error";
   segActionsLbl.textContent = "Segment " + (i + 1) + (seg.confirmed ? " · finalized" : "");
   confirmBtn.textContent = seg.confirmed ? "Unfinalize" : "Confirm";
   redoBtn.style.display = seg.blob ? "" : "none";
   formatBtn.style.display = (seg.text && seg.text.trim()) ? "" : "none";
+  textBtn.style.display = editable ? "" : "none";
   segActions.classList.add("show");
   updateSelectedClasses();
+  repositionActions();
 }
-function closeActions() { selectedIndex = -1; segActions.classList.remove("show"); updateSelectedClasses(); }
+function closeActions() {
+  saveEditing();
+  selectedIndex = -1; segActions.classList.remove("show");
+  updateSelectedClasses(); render();
+}
+function saveEditing() {
+  if (editingId === null) return;
+  const i = indexOfId(editingId);
+  const el = segEls.get(editingId);
+  if (i >= 0 && el) segments[i].text = cleanText(el.innerText);
+  editingId = null;
+  if (el) { el.setAttribute("contenteditable", "false"); if (document.activeElement === el) el.blur(); }
+}
+function enableTextEdit(i) {
+  const seg = segments[i];
+  const el = segEls.get(seg.id);
+  if (!el) return;
+  editingId = seg.id;
+  el.textContent = seg.text || "";
+  el.setAttribute("contenteditable", "true");
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el); range.collapse(false);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  setTimeout(repositionActions, 50);
+}
+/* keep the action bar sitting just above the on-screen keyboard */
+const vv = window.visualViewport;
+function repositionActions() {
+  if (!vv) return;
+  const gap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  segActions.style.bottom = gap + "px";
+}
+if (vv) { vv.addEventListener("resize", repositionActions); vv.addEventListener("scroll", repositionActions); }
 function updateSelectedClasses() {
   segments.forEach((seg, i) => {
     const el = segEls.get(seg.id);
@@ -570,6 +604,10 @@ redoBtn.addEventListener("click", () => {
 formatBtn.addEventListener("click", () => {
   if (selectedIndex < 0) return;
   const i = selectedIndex; closeActions(); formatSegment(i);
+});
+textBtn.addEventListener("click", () => {
+  if (selectedIndex < 0) return;
+  enableTextEdit(selectedIndex);
 });
 
 function appendAndRecord() {
@@ -658,19 +696,10 @@ function getSegEl(seg) {
     el = document.createElement("span");
     el.className = "seg";
     el.dataset.id = seg.id;
-    el.addEventListener("focusin", () => {
-      if (el.getAttribute("contenteditable") === "true") {
-        editingId = seg.id;
-        const i = indexOfId(seg.id);
-        if (i >= 0) showActionsFor(i);
-      }
-    });
-    el.addEventListener("input", () => { seg.text = el.innerText.replace(/ /g, " "); });
+    // Live update while typing; segments become editable only via the Text button.
+    el.addEventListener("input", () => { seg.text = el.innerText; });
     el.addEventListener("blur", () => {
-      if (editingId === seg.id) {
-        seg.text = el.innerText.replace(/ /g, " ").replace(/^[ \t]+|[ \t]+$/g, "");
-        editingId = null; render();
-      }
+      if (editingId === seg.id) { seg.text = cleanText(el.innerText); editingId = null; render(); }
     });
     segEls.set(seg.id, el);
   }
@@ -710,8 +739,9 @@ function render() {
     if (i === cursor && recording) el.classList.add("cursor");
     if (seg.confirmed) el.classList.add("confirmed");
     if (i === selectedIndex) el.classList.add("selected");
-    const editable = seg.status === "done" || seg.status === "error";
-    el.setAttribute("contenteditable", editable ? "true" : "false");
+    // Only the segment actively being edited is contenteditable, so tapping a
+    // segment never pops the keyboard on its own.
+    el.setAttribute("contenteditable", editingId === seg.id ? "true" : "false");
     if (editingId !== seg.id) setSegContent(el, seg);
   });
 
