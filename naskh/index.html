@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Naskh — Arabic audio to text</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e1013;
+    --surface:#171a20;
+    --surface-2:#1f232b;
+    --line:#2a2f39;
+    --text:#e9e7e0;
+    --muted:#8c919c;
+    --gold:#c9a24b;
+    --gold-dim:#8a7333;
+    --err:#e07a5f;
+    --ok:#7fb069;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #1a1e27 0%, var(--ink) 60%);
+    color:var(--text);
+    font-family:"Space Grotesk",system-ui,-apple-system,sans-serif;
+    min-height:100dvh;
+    padding:max(20px,env(safe-area-inset-top)) 18px calc(40px + env(safe-area-inset-bottom));
+    line-height:1.5;
+  }
+  .wrap{max-width:640px;margin:0 auto}
+  header{margin:8px 0 26px}
+  .eyebrow{
+    font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--gold);font-weight:600;margin-bottom:10px;
+  }
+  h1{
+    font-family:"Amiri",serif;font-weight:700;
+    font-size:clamp(30px,9vw,44px);line-height:1.05;margin:0 0 8px;
+  }
+  .sub{color:var(--muted);font-size:14px;max-width:46ch}
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:18px;
+    margin-top:16px;
+  }
+  label.field{display:block;margin-bottom:16px}
+  label.field:last-child{margin-bottom:0}
+  .lab{font-size:13px;color:var(--muted);margin-bottom:8px;display:block}
+  input[type=password],input[type=text]{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);
+    color:var(--text);border-radius:10px;padding:13px 14px;font-size:16px;
+    font-family:inherit;outline:none;
+  }
+  input:focus{border-color:var(--gold-dim)}
+  .filebtn{
+    display:flex;align-items:center;gap:12px;
+    background:var(--surface-2);border:1px dashed var(--line);
+    border-radius:10px;padding:16px 14px;cursor:pointer;
+  }
+  .filebtn .ico{font-size:22px;line-height:1}
+  .filebtn .txt{font-size:15px}
+  .filebtn .meta{font-size:12px;color:var(--muted);margin-top:2px}
+  input[type=file]{display:none}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  button.go{
+    width:100%;margin-top:18px;padding:15px;border:none;border-radius:12px;
+    background:linear-gradient(180deg,var(--gold) 0%,var(--gold-dim) 100%);
+    color:#1a1305;font-weight:600;font-size:16px;font-family:inherit;
+    cursor:pointer;letter-spacing:.01em;
+  }
+  button.go:disabled{opacity:.5;cursor:default}
+  .status{margin-top:16px;font-size:14px;color:var(--muted);min-height:20px}
+  .status.err{color:var(--err)}
+  .status.ok{color:var(--ok)}
+  .log{
+    margin-top:10px;font-size:12.5px;color:var(--muted);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    white-space:pre-wrap;max-height:120px;overflow:auto;
+  }
+  .bar{height:4px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-top:14px}
+  .bar > i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s ease}
+  .out{margin-top:20px;display:none}
+  .out.show{display:block}
+  .out-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
+  .out-head .t{font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+  .out-actions{display:flex;gap:8px}
+  .mini{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:8px 12px;font-size:13px;font-family:inherit;cursor:pointer;
+  }
+  .transcript{
+    background:#12161d;border:1px solid var(--line);border-radius:14px;
+    padding:20px;direction:rtl;text-align:right;
+    font-family:"Amiri",serif;font-size:20px;line-height:2.05;
+    white-space:pre-wrap;word-wrap:break-word;
+    max-height:60vh;overflow:auto;
+  }
+  footer{margin-top:26px;font-size:12px;color:var(--muted);text-align:center;line-height:1.7}
+  a{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Speech to text</div>
+    <h1>نَسْخ · Naskh</h1>
+    <p class="sub">Turn a long Arabic recording into text, entirely in your browser. The audio never touches any server except Groq's transcription endpoint.</p>
+  </header>
+
+  <div class="card">
+    <label class="field">
+      <span class="lab">Groq API key</span>
+      <input id="key" type="password" placeholder="gsk_..." autocomplete="off" spellcheck="false">
+      <span class="hint">Kept in this tab only. Sent straight to Groq, never stored.</span>
+    </label>
+
+    <label class="field">
+      <span class="lab">Audio file</span>
+      <label class="filebtn" for="file">
+        <span class="ico">♪</span>
+        <span>
+          <span class="txt" id="fileName">Choose a recording</span>
+          <span class="meta" id="fileMeta">m4a, mp3, wav, and most audio formats</span>
+        </span>
+      </label>
+      <input id="file" type="file" accept="audio/*,video/mp4,.m4a,.mp3,.wav,.aac,.ogg,.opus">
+    </label>
+
+    <button class="go" id="go" disabled>Transcribe</button>
+    <div class="bar" id="barWrap" style="display:none"><i id="bar"></i></div>
+    <div class="status" id="status"></div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="out" id="out">
+    <div class="out-head">
+      <span class="t">Transcript</span>
+      <span class="out-actions">
+        <button class="mini" id="copy">Copy</button>
+        <button class="mini" id="download">Download</button>
+      </span>
+    </div>
+    <div class="transcript" id="transcript"></div>
+  </div>
+
+  <footer>
+    Uses Whisper large-v3 for best Arabic accuracy. Files under ~24 MB are sent whole;<br>
+    longer ones are downsampled to 16 kHz mono and split into parts automatically.
+  </footer>
+</div>
+
+<script>
+const CHUNK_SEC = 540;                 // ~17 MB per WAV chunk, safely under Groq's 25 MB cap
+const DIRECT_LIMIT = 24 * 1024 * 1024; // send whole file below this
+const MODEL = "whisper-large-v3";
+const FFMPEG_JS = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js";
+const FFMPEG_CORE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js";
+
+const $ = id => document.getElementById(id);
+let chosenFile = null;
+let ffmpeg = null;
+
+$("file").addEventListener("change", e => {
+  chosenFile = e.target.files[0] || null;
+  if (chosenFile){
+    $("fileName").textContent = chosenFile.name;
+    $("fileMeta").textContent = (chosenFile.size/1048576).toFixed(1) + " MB";
+  }
+  refreshGo();
+});
+$("key").addEventListener("input", refreshGo);
+function refreshGo(){ $("go").disabled = !(chosenFile && $("key").value.trim()); }
+
+function setStatus(msg, kind){ const s=$("status"); s.textContent=msg; s.className="status"+(kind?" "+kind:""); }
+function log(line){ const l=$("log"); l.textContent += (l.textContent?"\n":"") + line; l.scrollTop=l.scrollHeight; }
+function progress(p){ $("barWrap").style.display="block"; $("bar").style.width=Math.round(p*100)+"%"; }
+
+$("go").addEventListener("click", run);
+
+async function run(){
+  const key = $("key").value.trim();
+  $("go").disabled = true;
+  $("log").textContent = "";
+  $("out").classList.remove("show");
+  progress(0.02);
+
+  try{
+    let text;
+    if (chosenFile.size <= DIRECT_LIMIT){
+      setStatus("Sending the whole file to Groq...");
+      log("File is small enough to send in one request.");
+      text = await groq(chosenFile, chosenFile.name, key);
+      progress(1);
+    } else {
+      setStatus("Preparing audio engine...");
+      log("Large file. Loading the in-browser audio processor.");
+      await loadFFmpeg();
+      setStatus("Splitting and downsampling...");
+      const chunks = await makeChunks(chosenFile);
+      log("Created " + chunks.length + " part(s).");
+      const parts = [];
+      for (let i=0;i<chunks.length;i++){
+        setStatus("Transcribing part " + (i+1) + " of " + chunks.length + "...");
+        const t = await groq(chunks[i].blob, "part"+i+".wav", key);
+        parts.push(t.trim());
+        try{ ffmpeg.FS("unlink", chunks[i].name); }catch(_){}
+        progress(0.1 + 0.9*((i+1)/chunks.length));
+      }
+      text = parts.join("\n\n");
+    }
+
+    showTranscript(text.trim());
+    setStatus("Done.", "ok");
+  }catch(err){
+    console.error(err);
+    setStatus(readableError(err), "err");
+  }finally{
+    $("go").disabled = false;
+  }
+}
+
+async function groq(blob, filename, key){
+  const fd = new FormData();
+  fd.append("file", blob, filename);
+  fd.append("model", MODEL);
+  fd.append("language", "ar");
+  fd.append("response_format", "text");
+  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method:"POST",
+    headers:{ "Authorization":"Bearer " + key },
+    body: fd
+  });
+  if(!res.ok){
+    const body = await res.text().catch(()=> "");
+    throw new Error("Groq " + res.status + ": " + body.slice(0,300));
+  }
+  return await res.text();
+}
+
+function loadScript(src){
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src=src; s.onload=resolve;
+    s.onerror=()=>reject(new Error("Could not load "+src));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadFFmpeg(){
+  if (ffmpeg) return;
+  if (typeof FFmpeg === "undefined") await loadScript(FFMPEG_JS);
+  const { createFFmpeg } = FFmpeg;
+  ffmpeg = createFFmpeg({ log:false, corePath: FFMPEG_CORE });
+  await ffmpeg.load();
+}
+
+async function makeChunks(file){
+  const { fetchFile } = FFmpeg;
+  ffmpeg.FS("writeFile", "input", await fetchFile(file));
+
+  // Preferred: one decode pass, segment muxer
+  try{
+    await ffmpeg.run(
+      "-i","input","-vn","-ar","16000","-ac","1",
+      "-f","segment","-segment_time",String(CHUNK_SEC),"-reset_timestamps","1",
+      "seg_%03d.wav"
+    );
+    const names = ffmpeg.FS("readdir","/")
+      .filter(n=>n.startsWith("seg_") && n.endsWith(".wav")).sort();
+    if (names.length) return readChunks(names);
+  }catch(e){ log("Segment pass failed, using fallback split."); }
+
+  // Fallback: seek-based loop using duration
+  const dur = await getDuration(file);
+  if (!isFinite(dur) || dur<=0) throw new Error("Could not read the audio length.");
+  const n = Math.ceil(dur / CHUNK_SEC);
+  const out = [];
+  for (let i=0;i<n;i++){
+    const name = "seg_"+String(i).padStart(3,"0")+".wav";
+    await ffmpeg.run(
+      "-ss",String(i*CHUNK_SEC),"-i","input","-t",String(CHUNK_SEC),
+      "-vn","-ar","16000","-ac","1", name
+    );
+    out.push(name);
+  }
+  return readChunks(out);
+}
+
+function readChunks(names){
+  return names.map(name=>{
+    const data = ffmpeg.FS("readFile", name);
+    return { name, blob: new Blob([data.buffer], { type:"audio/wav" }) };
+  });
+}
+
+function getDuration(file){
+  return new Promise(resolve=>{
+    const a=document.createElement("audio");
+    a.preload="metadata";
+    a.onloadedmetadata=()=>{ resolve(a.duration); URL.revokeObjectURL(a.src); };
+    a.onerror=()=>resolve(NaN);
+    a.src=URL.createObjectURL(file);
+  });
+}
+
+function showTranscript(text){
+  $("transcript").textContent = text || "(empty)";
+  $("out").classList.add("show");
+  $("out").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function readableError(err){
+  const m = String(err.message||err);
+  if (m.includes("401")) return "Groq rejected the key. Check that it is correct.";
+  if (m.includes("Could not load")) return "Could not reach the audio engine. Check your connection or VPN.";
+  if (m.includes("Failed to fetch")) return "Network blocked the request to Groq. Try toggling your VPN.";
+  return m;
+}
+
+$("copy").addEventListener("click", async ()=>{
+  try{ await navigator.clipboard.writeText($("transcript").textContent); $("copy").textContent="Copied"; setTimeout(()=>$("copy").textContent="Copy",1500);}catch(_){}
+});
+$("download").addEventListener("click", ()=>{
+  const blob=new Blob([$("transcript").textContent],{type:"text/plain;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="transcript.txt";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>
