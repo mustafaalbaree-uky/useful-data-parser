@@ -81,7 +81,7 @@
   .log{
     margin-top:10px;font-size:12.5px;color:var(--muted);
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-    white-space:pre-wrap;max-height:120px;overflow:auto;
+    white-space:pre-wrap;max-height:160px;overflow:auto;
   }
   .bar{height:4px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-top:14px}
   .bar > i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s ease}
@@ -151,18 +151,33 @@
 
   <footer>
     Uses Whisper large-v3 for best Arabic accuracy. Files under ~24 MB are sent whole;<br>
-    longer ones are downsampled to 16 kHz mono and split into parts automatically.
+    longer ones are converted to 16 kHz mono and split into parts automatically.
   </footer>
 </div>
 
 <script>
-const CHUNK_SEC = 540;                 // ~17 MB per WAV chunk, safely under Groq's 25 MB cap
+const CHUNK_SEC = 540;                 // 9 min => ~17 MB WAV, safely under Groq's 25 MB cap
 const DIRECT_LIMIT = 24 * 1024 * 1024; // send whole file below this
 const TARGET_RATE = 16000;
 const MODEL = "whisper-large-v3";
 
+// ffmpeg.wasm 0.12 with the SINGLE-THREADED core: no SharedArrayBuffer needed,
+// works on GitHub Pages / iPhone Safari. Processes 9-minute slices one at a
+// time so memory stays low even for multi-hour recordings. All engine files
+// are served from this site's own vendor/ folder — no CDN, no CORS.
+const vendor = name => new URL("vendor/" + name, location.href).href;
+
 const $ = id => document.getElementById(id);
 let chosenFile = null;
+let ffmpeg = null;
+let engineLog = []; // rolling tail of ffmpeg's own output, shown on failure
+
+// Debug: surface every uncaught problem on the page instead of dying silently.
+window.addEventListener("error", e => log("[js error] " + (e.message || e.type)));
+window.addEventListener("unhandledrejection", e => {
+  const r = e.reason;
+  log("[promise error] " + (r && r.message ? r.message : String(r)));
+});
 
 $("file").addEventListener("change", e => {
   chosenFile = e.target.files[0] || null;
@@ -196,24 +211,49 @@ async function run(){
       text = await groq(chosenFile, chosenFile.name, key);
       progress(1);
     } else {
-      setStatus("Decoding and resampling audio...");
-      log("Large file. Decoding in the browser (this can take a moment).");
-      const chunks = await makeChunks(chosenFile);
-      log("Created " + chunks.length + " part(s).");
+      setStatus("Loading audio engine...");
+      log("Large file (" + (chosenFile.size/1048576).toFixed(1) + " MB). Loading converter (~31 MB download, first time only)...");
+      await loadFFmpeg();
+      progress(0.06);
+
+      setStatus("Reading the recording...");
+      await ffmpeg.writeFile("input", new Uint8Array(await chosenFile.arrayBuffer()));
+      const dur = await getDurationSeconds(chosenFile);
+      log("Duration: " + fmtTime(dur));
+      const n = Math.max(1, Math.ceil(dur / CHUNK_SEC));
+      log("Splitting into " + n + " part(s) of up to 9 minutes each.");
+
       const parts = [];
-      for (let i=0;i<chunks.length;i++){
-        setStatus("Transcribing part " + (i+1) + " of " + chunks.length + "...");
-        const t = await groq(chunks[i].blob, chunks[i].name, key);
+      for (let i=0;i<n;i++){
+        setStatus("Converting part " + (i+1) + " of " + n + "...");
+        await ffmpeg.exec([
+          "-nostdin","-y",
+          "-ss", String(i*CHUNK_SEC), "-t", String(CHUNK_SEC),
+          "-i","input","-vn","-ac","1","-ar",String(TARGET_RATE),
+          "seg.wav"
+        ]);
+        const data = await ffmpeg.readFile("seg.wav");
+        try{ await ffmpeg.deleteFile("seg.wav"); }catch(_){}
+        if (data.length <= 44){ log("Part " + (i+1) + " came back empty; stopping early."); break; }
+
+        setStatus("Transcribing part " + (i+1) + " of " + n + "...");
+        const t = await groq(new Blob([data], {type:"audio/wav"}), "part"+i+".wav", key);
         parts.push(t.trim());
-        progress(0.1 + 0.9*((i+1)/chunks.length));
+        log("Part " + (i+1) + "/" + n + " done.");
+        progress(0.1 + 0.88*((i+1)/n));
       }
+      try{ await ffmpeg.deleteFile("input"); }catch(_){}
       text = parts.join("\n\n");
     }
 
     showTranscript(text.trim());
     setStatus("Done.", "ok");
+    progress(1);
   }catch(err){
     console.error(err);
+    if (engineLog.length){
+      log("[engine] " + engineLog.slice(-6).join("\n[engine] "));
+    }
     setStatus(readableError(err), "err");
   }finally{
     $("go").disabled = false;
@@ -238,72 +278,57 @@ async function groq(blob, filename, key){
   return await res.text();
 }
 
-async function decodeToMono16k(file){
-  const arrayBuf = await file.arrayBuffer();
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AudioCtx();
-  let audioBuffer;
-  try{
-    audioBuffer = await new Promise((resolve, reject) => {
-      const maybePromise = ctx.decodeAudioData(arrayBuf, resolve, reject);
-      if (maybePromise && typeof maybePromise.then === "function") maybePromise.then(resolve, reject);
-    });
-  }finally{
-    ctx.close();
-  }
-
-  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-  const length = Math.ceil(audioBuffer.duration * TARGET_RATE);
-  const offline = new OfflineCtx(1, length, TARGET_RATE);
-  const src = offline.createBufferSource();
-  src.buffer = audioBuffer;
-  src.connect(offline.destination);
-  src.start(0);
-  const rendered = await offline.startRendering();
-  return rendered.getChannelData(0); // mono Float32Array at 16 kHz
+function loadScript(src){
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src=src; s.onload=resolve;
+    s.onerror=()=>reject(new Error("Could not load "+src));
+    document.head.appendChild(s);
+  });
 }
 
-function floatTo16BitPCM(float32){
-  const out = new Int16Array(float32.length);
-  for (let i=0;i<float32.length;i++){
-    const s = Math.max(-1, Math.min(1, float32[i]));
-    out[i] = s < 0 ? s*0x8000 : s*0x7fff;
-  }
-  return out;
+async function loadFFmpeg(){
+  if (ffmpeg) return;
+  if (typeof FFmpegWASM === "undefined") await loadScript(vendor("ffmpeg.js"));
+  const inst = new FFmpegWASM.FFmpeg();
+  inst.on("log", ({message}) => {
+    engineLog.push(message);
+    if (engineLog.length > 200) engineLog.shift();
+  });
+  await inst.load({
+    coreURL: vendor("ffmpeg-core.js"),
+    wasmURL: vendor("ffmpeg-core.wasm"),
+  });
+  ffmpeg = inst;
+  log("Audio engine ready.");
 }
 
-function encodeWavMono16(samples, sampleRate){
-  const buffer = new ArrayBuffer(44 + samples.length*2);
-  const view = new DataView(buffer);
-  const writeStr = (offset, str) => { for (let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); };
-  writeStr(0,"RIFF");
-  view.setUint32(4, 36 + samples.length*2, true);
-  writeStr(8,"WAVE");
-  writeStr(12,"fmt ");
-  view.setUint32(16,16,true);
-  view.setUint16(20,1,true);        // PCM
-  view.setUint16(22,1,true);        // mono
-  view.setUint32(24,sampleRate,true);
-  view.setUint32(28,sampleRate*2,true); // byte rate
-  view.setUint16(32,2,true);        // block align
-  view.setUint16(34,16,true);       // bits per sample
-  writeStr(36,"data");
-  view.setUint32(40, samples.length*2, true);
-  let offset = 44;
-  for (let i=0;i<samples.length;i++, offset+=2) view.setInt16(offset, samples[i], true);
-  return new Blob([buffer], { type:"audio/wav" });
+async function getDurationSeconds(file){
+  const d = await getDurationFromElement(file);
+  if (isFinite(d) && d > 0) return d;
+  // Fallback: let ffmpeg probe the file and read Duration from its log.
+  log("Browser couldn't read the length; asking the engine...");
+  engineLog = [];
+  try{ await ffmpeg.exec(["-nostdin","-i","input"]); }catch(_){ /* probe always "fails" */ }
+  const m = engineLog.join("\n").match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
+  if (m) return (+m[1])*3600 + (+m[2])*60 + (+m[3]);
+  throw new Error("Could not read the audio length.");
 }
 
-async function makeChunks(file){
-  const mono16k = await decodeToMono16k(file);
-  const chunkLen = CHUNK_SEC * TARGET_RATE;
-  const chunks = [];
-  for (let start=0, i=0; start<mono16k.length; start+=chunkLen, i++){
-    const slice = mono16k.subarray(start, Math.min(start+chunkLen, mono16k.length));
-    const blob = encodeWavMono16(floatTo16BitPCM(slice), TARGET_RATE);
-    chunks.push({ name: "part"+i+".wav", blob });
-  }
-  return chunks;
+function getDurationFromElement(file){
+  return new Promise(resolve=>{
+    const a=document.createElement("audio");
+    a.preload="metadata";
+    a.onloadedmetadata=()=>{ const d=a.duration; URL.revokeObjectURL(a.src); resolve(d); };
+    a.onerror=()=>{ URL.revokeObjectURL(a.src); resolve(NaN); };
+    a.src=URL.createObjectURL(file);
+  });
+}
+
+function fmtTime(sec){
+  sec = Math.round(sec);
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  return (h? h+"h " : "") + m + "m " + s + "s";
 }
 
 function showTranscript(text){
@@ -313,10 +338,11 @@ function showTranscript(text){
 }
 
 function readableError(err){
-  const m = String(err.message||err);
+  const m = String(err && err.message || err);
   if (m.includes("401")) return "Groq rejected the key. Check that it is correct.";
-  if (m.includes("Failed to fetch")) return "Network blocked the request to Groq. Try toggling your VPN.";
-  if (/decod/i.test(m) || err instanceof DOMException) return "Your browser could not decode this audio file's format.";
+  if (m.includes("Could not load")) return "Could not download the audio engine. Check your connection or VPN, then retry.";
+  if (m.includes("Failed to fetch")) return "Network blocked a request. Try toggling your VPN and retry.";
+  if (/out of memory|allocat/i.test(m)) return "The phone ran out of memory. Close other tabs and try again.";
   return m;
 }
 
