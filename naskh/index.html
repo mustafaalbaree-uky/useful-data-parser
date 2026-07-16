@@ -165,9 +165,11 @@
 <script>
 const qp = new URLSearchParams(location.search);
 const DIRECT_LIMIT = qp.has("direct") ? +qp.get("direct") : 24 * 1024 * 1024;
-const TARGET_MB    = qp.has("target") ? +qp.get("target") : 12;  // per part; smaller = faster retries on flaky uploads
+const TARGET_MB    = qp.has("target") ? +qp.get("target") : 12;  // keep stable: changing it re-cuts files and orphans saved parts
 const MODEL = "whisper-large-v3";
 const MAX_ATTEMPTS = 6;
+const STALL_UPLOAD_S = qp.has("stallup") ? +qp.get("stallup") : 60;    // abort if upload makes no progress this long
+const STALL_WAIT_S   = qp.has("stallwait") ? +qp.get("stallwait") : 300; // allowance for Groq to answer after upload
 
 // ffmpeg.wasm 0.12 single-threaded core: no SharedArrayBuffer, low memory,
 // served from this site's own vendor/ folder (no CDN, no CORS).
@@ -254,7 +256,7 @@ async function run(){
     let text;
     if (chosenFile.size <= DIRECT_LIMIT){
       log("File is small enough to send in one request.");
-      text = await groqWithRetry(chosenFile, chosenFile.name, key, "the file");
+      text = await transcribePart(chosenFile, chosenFile.name, key, "the file");
       progress(1);
     } else {
       setStatus("Loading audio engine...");
@@ -291,7 +293,7 @@ async function run(){
       for (let i=0;i<parts.length;i++){
         if (results[i]) continue;
         const label = "part " + (i+1) + "/" + parts.length;
-        results[i] = (await groqWithRetry(parts[i].blob, parts[i].name, key, label)).trim();
+        results[i] = (await transcribePart(parts[i].blob, parts[i].name, key, label)).trim();
         store.set(fileTag+i, results[i]);
         doneCount++;
         log("Part " + (i+1) + "/" + parts.length + " transcribed.");
@@ -329,7 +331,7 @@ async function run(){
   }
 }
 
-// ---- Groq upload with live progress + automatic retry ----
+// ---- Groq upload with live progress, stall watchdog + automatic retry ----
 function groqXHR(blob, filename, key, onPct){
   return new Promise((resolve, reject) => {
     const fd = new FormData();
@@ -338,11 +340,29 @@ function groqXHR(blob, filename, key, onPct){
     fd.append("language", "ar");
     fd.append("response_format", "text");
     const xhr = new XMLHttpRequest();
+    let stalled = false;
+    let lastBeat = performance.now();
+    let phase = "upload"; // then "wait" once the body is fully sent
+    const watchdog = setInterval(() => {
+      const limit = (phase === "upload" ? STALL_UPLOAD_S : STALL_WAIT_S) * 1000;
+      if (performance.now() - lastBeat > limit){
+        stalled = true;
+        clearInterval(watchdog);
+        xhr.abort();
+      }
+    }, 2000);
+    const finish = fn => arg => { clearInterval(watchdog); fn(arg); };
     xhr.open("POST", "https://api.groq.com/openai/v1/audio/transcriptions");
     xhr.setRequestHeader("Authorization", "Bearer " + key);
     xhr.responseType = "text";
-    xhr.upload.onprogress = e => { if (e.lengthComputable && onPct) onPct(e.loaded, e.total); };
-    xhr.onload = () => {
+    xhr.upload.onprogress = e => {
+      lastBeat = performance.now();
+      if (e.lengthComputable){
+        if (onPct) onPct(e.loaded, e.total);
+        if (e.loaded >= e.total) phase = "wait";
+      }
+    };
+    xhr.onload = finish(() => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response);
       else {
         const err = new Error("Groq " + xhr.status + ": " + String(xhr.response||"").slice(0,300));
@@ -350,15 +370,18 @@ function groqXHR(blob, filename, key, onPct){
         err.body = String(xhr.response||"");
         reject(err);
       }
-    };
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.onabort = () => reject(new Error("Upload was interrupted"));
+    });
+    xhr.onerror = finish(() => reject(new Error("Network error during upload")));
+    xhr.onabort = finish(() => reject(new Error(stalled
+      ? "Upload stalled (no progress for " + STALL_UPLOAD_S + "s)"
+      : "Upload was interrupted")));
     xhr.send(fd);
   });
 }
 
-async function groqWithRetry(blob, filename, key, label){
-  for (let attempt=1;;attempt++){
+async function groqWithRetry(blob, filename, key, label, maxNet = MAX_ATTEMPTS){
+  let net = 0, rateLimited = 0;
+  for (;;){
     try{
       const t0 = performance.now();
       const res = await groqXHR(blob, filename, key, (loaded, total) => {
@@ -372,20 +395,79 @@ async function groqWithRetry(blob, filename, key, label){
       return res;
     }catch(err){
       const st = err.status || 0;
-      if (st && st !== 429 && st < 500) throw err;            // wrong key, too large, etc — retrying won't help
-      if (attempt >= MAX_ATTEMPTS) throw err;
-      let wait = Math.min(30, Math.pow(2, attempt) * 2);       // network / 5xx: 4s, 8s, 16s, 30s...
-      if (st === 429){
-        wait = parseRetrySeconds(err.body) || 60;
-        wait = Math.min(wait + 2, 900);
+      if (st === 429){                                        // rate limit: wait it out, doesn't burn retries
+        if (++rateLimited > 8) throw err;
+        let wait = Math.min((parseRetrySeconds(err.body) || 60) + 2, 900);
         log("Groq rate limit on " + label + " — waiting " + fmtClock(wait) + " then continuing. Normal for long recordings on the free tier.");
         notify("Rate limit — pausing " + fmtClock(wait) + ", then continuing automatically.");
-      } else {
-        log(label + " upload failed (" + (st || "network") + "). Retrying — attempt " + (attempt+1) + "/" + MAX_ATTEMPTS + ".");
+        await countdown(wait, label);
+        continue;
       }
+      if (st && st < 500) throw err;                          // wrong key, too large, etc — retrying won't help
+      if (++net >= maxNet) throw err;
+      const wait = Math.min(30, Math.pow(2, net) * 2);        // network / stall / 5xx: 4s, 8s, 16s, 30s...
+      log(label + " upload failed (" + (err.message.includes("stalled") ? "stalled" : (st || "network")) + "). Retrying — attempt " + (net+1) + "/" + maxNet + ".");
       await countdown(wait, label);
     }
   }
+}
+
+// Transcribe one part; if the full part refuses to upload twice, cut it into
+// ~3 smaller pieces (stream copy, instant) so each piece can slip through a
+// flaky connection, and stitch the piece transcripts back together.
+async function transcribePart(blob, filename, key, label){
+  try{
+    return await groqWithRetry(blob, filename, key, label, 2);
+  }catch(err){
+    const st = err.status || 0;
+    if (st && st < 500) throw err;                            // permanent — smaller pieces won't help
+    log(label + " keeps failing at full size — cutting it into smaller pieces.");
+    notify(label + " is struggling to upload — retrying in smaller pieces.");
+    const pieces = await splitBlob(blob);
+    const texts = [];
+    for (let j=0;j<pieces.length;j++){
+      const t = await groqWithRetry(pieces[j], "piece"+j+".m4a", key,
+        label + " · piece " + (j+1) + "/" + pieces.length);
+      texts.push(t.trim());
+    }
+    return texts.join("\n");
+  }
+}
+
+// Cut a blob into ~3 pieces with stream copy (re-encode fallback).
+async function splitBlob(blob){
+  await loadFFmpeg();
+  await ffmpeg.writeFile("resplit", new Uint8Array(await blob.arrayBuffer()));
+  const dur = await probeDuration("resplit");
+  const chunkSec = Math.max(60, Math.ceil((dur || 600) / 3));
+  let ret = await ffmpeg.exec([
+    "-nostdin","-y","-i","resplit","-vn","-c","copy",
+    "-f","segment","-segment_time",String(chunkSec),"-reset_timestamps","1",
+    "piece%03d.m4a"
+  ]);
+  let names = (await ffmpeg.listDir("/"))
+    .filter(f => !f.isDir && /^piece\d+\.m4a$/.test(f.name)).map(f => f.name).sort();
+  if (ret !== 0 || !names.length){
+    for (const n of names){ try{ await ffmpeg.deleteFile(n); }catch(_){} }
+    ret = await ffmpeg.exec([
+      "-nostdin","-y","-i","resplit","-vn","-ac","1","-ar","16000","-c:a","aac","-b:a","48k",
+      "-f","segment","-segment_time",String(chunkSec),"-reset_timestamps","1",
+      "piece%03d.m4a"
+    ]);
+    if (ret !== 0) throw new Error("Could not split the failing part.");
+    names = (await ffmpeg.listDir("/"))
+      .filter(f => !f.isDir && /^piece\d+\.m4a$/.test(f.name)).map(f => f.name).sort();
+  }
+  const pieces = [];
+  for (const n of names){
+    const data = await ffmpeg.readFile(n);
+    if (data.length >= 1024) pieces.push(new Blob([data], {type:"audio/mp4"}));
+    try{ await ffmpeg.deleteFile(n); }catch(_){}
+  }
+  try{ await ffmpeg.deleteFile("resplit"); }catch(_){}
+  if (!pieces.length) throw new Error("Could not split the failing part.");
+  log("Split into " + pieces.length + " pieces: " + pieces.map(p=>(p.size/1048576).toFixed(1)+"MB").join(", "));
+  return pieces;
 }
 
 function parseRetrySeconds(body){
@@ -512,14 +594,20 @@ async function makeParts(dur){
   return parts;
 }
 
+async function probeDuration(memfsName){
+  engineLog = [];
+  try{ await ffmpeg.exec(["-nostdin","-i",memfsName]); }catch(_){ /* probe always "fails" */ }
+  const m = engineLog.join("\n").match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
+  engineLog = [];
+  return m ? (+m[1])*3600 + (+m[2])*60 + (+m[3]) : 0;
+}
+
 async function getDurationSeconds(file){
   const d = await getDurationFromElement(file);
   if (isFinite(d) && d > 0) return d;
   log("Browser couldn't read the length; asking the engine...");
-  engineLog = [];
-  try{ await ffmpeg.exec(["-nostdin","-i","input"]); }catch(_){ /* probe always "fails" */ }
-  const m = engineLog.join("\n").match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
-  if (m) return (+m[1])*3600 + (+m[2])*60 + (+m[3]);
+  const p = await probeDuration("input");
+  if (p > 0) return p;
   throw new Error("Could not read the audio length.");
 }
 
