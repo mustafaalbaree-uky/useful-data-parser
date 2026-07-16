@@ -278,6 +278,26 @@ async function run(){
       partsTotal = parts.length;
       results = new Array(parts.length);
       fileTag = "naskh_part:" + chosenFile.name + ":" + chosenFile.size + ":" + parts.length + ":";
+      // Drop saved parts that belong to a different file so storage can't fill up.
+      try{
+        for (let k = localStorage.length-1; k >= 0; k--){
+          const kk = localStorage.key(k);
+          if (kk && kk.startsWith("naskh_part:") && !kk.startsWith(fileTag)) localStorage.removeItem(kk);
+        }
+      }catch(_){}
+
+      // Keep the transcript panel + saved progress current after every part,
+      // so Copy/Download and a page refresh always have the latest text.
+      const renderPartial = () => {
+        const doneTexts = results.filter(Boolean);
+        if (!doneTexts.length) return;
+        showTranscript(doneTexts.join("\n\n"), false);
+        store.set("naskh_progress", JSON.stringify({
+          name: chosenFile.name, total: partsTotal, done: doneTexts.length,
+          ts: new Date().toLocaleString(), text: doneTexts.join("\n\n")
+        }));
+      };
+
       let reused = 0;
       for (let i=0;i<parts.length;i++){
         if (store.get(fileTag+i)){ results[i] = store.get(fileTag+i); reused++; }
@@ -285,6 +305,7 @@ async function run(){
       if (reused){
         log("Found " + reused + "/" + parts.length + " part(s) already transcribed in a previous try — reusing them.");
         notify("Resuming: " + reused + "/" + parts.length + " parts already done, " + (parts.length-reused) + " to go.");
+        renderPartial();
       } else {
         notify("Started: " + parts.length + " parts, " + fmtTime(dur) + " of audio. Keep the tab open — updates will follow.");
       }
@@ -299,9 +320,11 @@ async function run(){
         log("Part " + (i+1) + "/" + parts.length + " transcribed.");
         notify("Part " + doneCount + "/" + parts.length + " transcribed ✓");
         progress(0.25 + 0.73*(doneCount/parts.length));
+        renderPartial();
       }
       text = results.join("\n\n");
       for (let i=0;i<parts.length;i++) store.del(fileTag+i);
+      store.del("naskh_progress");
     }
 
     showTranscript(text.trim());
@@ -631,10 +654,10 @@ function fmtClock(sec){
   return Math.floor(sec/60) + ":" + String(sec%60).padStart(2,"0");
 }
 
-function showTranscript(text){
+function showTranscript(text, scroll = true){
   $("transcript").textContent = text || "(empty)";
   $("out").classList.add("show");
-  $("out").scrollIntoView({behavior:"smooth", block:"start"});
+  if (scroll) $("out").scrollIntoView({behavior:"smooth", block:"start"});
 }
 
 function readableError(err){
@@ -658,13 +681,20 @@ $("download").addEventListener("click", ()=>{
   URL.revokeObjectURL(a.href);
 });
 
-// Restore saved ntfy code and, if a previous run finished, its transcript.
+// Restore saved ntfy code and any transcript — an unfinished run's partial
+// text takes priority over the last completed one.
 try{
   const savedTopic = localStorage.getItem("naskh_ntfy");
   if (savedTopic) $("ntfy").value = savedTopic;
+  const prog = localStorage.getItem("naskh_progress");
   const last = localStorage.getItem("naskh_last");
-  if (last){
-    showTranscript(last);
+  if (prog){
+    const p = JSON.parse(prog);
+    showTranscript(p.text, false);
+    log("Recovered an unfinished run: " + p.done + "/" + p.total + " parts of \"" + p.name + "\" (" + p.ts + "). " +
+        "Copy/Download work right now. To finish the rest, choose the same file and press Transcribe.");
+  } else if (last){
+    showTranscript(last, false);
     log("Recovered the transcript from your last run" +
         (localStorage.getItem("naskh_last_ts") ? " (" + localStorage.getItem("naskh_last_ts") + ")" : "") + ".");
   }
