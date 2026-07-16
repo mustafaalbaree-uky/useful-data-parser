@@ -81,7 +81,7 @@
   .log{
     margin-top:10px;font-size:12.5px;color:var(--muted);
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-    white-space:pre-wrap;max-height:160px;overflow:auto;
+    white-space:pre-wrap;max-height:180px;overflow:auto;
   }
   .bar{height:4px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-top:14px}
   .bar > i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s ease}
@@ -132,6 +132,12 @@
       <input id="file" type="file" accept="audio/*,video/mp4,.m4a,.mp3,.wav,.aac,.ogg,.opus">
     </label>
 
+    <label class="field">
+      <span class="lab">Phone updates — optional</span>
+      <input id="ntfy" type="text" placeholder="your ntfy code, e.g. naskh-4821" autocomplete="off" spellcheck="false" autocapitalize="off">
+      <span class="hint">Install the free <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy</a> app, subscribe to a code you invent, and type the same code here. You'll get a push when it starts, after every part, and the finished transcript is delivered to your phone — so you can switch apps while keeping this tab open.</span>
+    </label>
+
     <button class="go" id="go" disabled>Transcribe</button>
     <div class="bar" id="barWrap" style="display:none"><i id="bar"></i></div>
     <div class="status" id="status"></div>
@@ -151,32 +157,36 @@
 
   <footer>
     Uses Whisper large-v3 for best Arabic accuracy. Files under ~24 MB are sent whole;<br>
-    longer ones are converted to 16 kHz mono and split into parts automatically.
+    longer ones are cut into parts without re-encoding, so splitting takes seconds.
   </footer>
 </div>
 
 <script>
-const CHUNK_SEC = 540;                 // 9 min => ~17 MB WAV, safely under Groq's 25 MB cap
-const DIRECT_LIMIT = 24 * 1024 * 1024; // send whole file below this
-const TARGET_RATE = 16000;
+const qp = new URLSearchParams(location.search);
+const DIRECT_LIMIT = qp.has("direct") ? +qp.get("direct") : 24 * 1024 * 1024;
+const TARGET_MB    = qp.has("target") ? +qp.get("target") : 20;  // aim per part, under Groq's 25 MB cap
 const MODEL = "whisper-large-v3";
+const UPLOAD_CONCURRENCY = 2;
 
-// ffmpeg.wasm 0.12 with the SINGLE-THREADED core: no SharedArrayBuffer needed,
-// works on GitHub Pages / iPhone Safari. Processes 9-minute slices one at a
-// time so memory stays low even for multi-hour recordings. All engine files
-// are served from this site's own vendor/ folder — no CDN, no CORS.
+// ffmpeg.wasm 0.12 single-threaded core: no SharedArrayBuffer, low memory,
+// served from this site's own vendor/ folder (no CDN, no CORS).
 const vendor = name => new URL("vendor/" + name, location.href).href;
 
 const $ = id => document.getElementById(id);
 let chosenFile = null;
 let ffmpeg = null;
-let engineLog = []; // rolling tail of ffmpeg's own output, shown on failure
+let engineLog = [];
+let runT0 = null;
+let wakeLock = null;
 
 // Debug: surface every uncaught problem on the page instead of dying silently.
 window.addEventListener("error", e => log("[js error] " + (e.message || e.type)));
 window.addEventListener("unhandledrejection", e => {
   const r = e.reason;
   log("[promise error] " + (r && r.message ? r.message : String(r)));
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && runT0) log("Tab went to background — iOS may pause the work until you come back.");
 });
 
 $("file").addEventListener("change", e => {
@@ -188,11 +198,32 @@ $("file").addEventListener("change", e => {
   refreshGo();
 });
 $("key").addEventListener("input", refreshGo);
+$("ntfy").addEventListener("input", () => { try{ localStorage.setItem("naskh_ntfy", $("ntfy").value.trim()); }catch(_){} });
 function refreshGo(){ $("go").disabled = !(chosenFile && $("key").value.trim()); }
 
+function elapsed(){ return runT0 ? "[" + fmtClock((performance.now()-runT0)/1000) + "] " : ""; }
 function setStatus(msg, kind){ const s=$("status"); s.textContent=msg; s.className="status"+(kind?" "+kind:""); }
-function log(line){ const l=$("log"); l.textContent += (l.textContent?"\n":"") + line; l.scrollTop=l.scrollHeight; }
+function log(line){ const l=$("log"); l.textContent += (l.textContent?"\n":"") + elapsed() + line; l.scrollTop=l.scrollHeight; }
 function progress(p){ $("barWrap").style.display="block"; $("bar").style.width=Math.round(p*100)+"%"; }
+
+// ---- ntfy push notifications (optional) ----
+function ntfyTopic(){ return $("ntfy").value.trim().replace(/[^\w.~-]/g, ""); }
+async function notify(msg){
+  const t = ntfyTopic(); if (!t) return;
+  try{
+    await fetch("https://ntfy.sh/" + t, { method:"POST", body: msg, headers:{ "Title":"Naskh" } });
+  }catch(e){ log("[ntfy] couldn't send update: " + (e.message||e)); }
+}
+async function notifyTranscript(text){
+  const t = ntfyTopic(); if (!t) return;
+  try{
+    await fetch("https://ntfy.sh/" + t, {
+      method:"PUT",
+      body: new Blob([text], {type:"text/plain; charset=utf-8"}),
+      headers:{ "Title":"Naskh transcript", "Filename":"transcript.txt" }
+    });
+  }catch(e){ log("[ntfy] couldn't send transcript file: " + (e.message||e)); }
+}
 
 $("go").addEventListener("click", run);
 
@@ -201,7 +232,9 @@ async function run(){
   $("go").disabled = true;
   $("log").textContent = "";
   $("out").classList.remove("show");
+  runT0 = performance.now();
   progress(0.02);
+  try{ wakeLock = await navigator.wakeLock.request("screen"); log("Screen wake-lock on — the phone won't sleep while working."); }catch(_){}
 
   try{
     let text;
@@ -212,51 +245,57 @@ async function run(){
       progress(1);
     } else {
       setStatus("Loading audio engine...");
-      log("Large file (" + (chosenFile.size/1048576).toFixed(1) + " MB). Loading converter (~31 MB download, first time only)...");
+      log("Large file (" + (chosenFile.size/1048576).toFixed(1) + " MB).");
       await loadFFmpeg();
-      progress(0.06);
 
       setStatus("Reading the recording...");
       await ffmpeg.writeFile("input", new Uint8Array(await chosenFile.arrayBuffer()));
       const dur = await getDurationSeconds(chosenFile);
       log("Duration: " + fmtTime(dur));
-      const n = Math.max(1, Math.ceil(dur / CHUNK_SEC));
-      log("Splitting into " + n + " part(s) of up to 9 minutes each.");
 
-      const parts = [];
-      for (let i=0;i<n;i++){
-        setStatus("Converting part " + (i+1) + " of " + n + "...");
-        await ffmpeg.exec([
-          "-nostdin","-y",
-          "-ss", String(i*CHUNK_SEC), "-t", String(CHUNK_SEC),
-          "-i","input","-vn","-ac","1","-ar",String(TARGET_RATE),
-          "seg.wav"
-        ]);
-        const data = await ffmpeg.readFile("seg.wav");
-        try{ await ffmpeg.deleteFile("seg.wav"); }catch(_){}
-        if (data.length <= 44){ log("Part " + (i+1) + " came back empty; stopping early."); break; }
+      setStatus("Cutting into parts (no re-encoding)...");
+      const parts = await makeParts(dur);
+      log("Ready to transcribe " + parts.length + " part(s): " +
+          parts.map(p => (p.blob.size/1048576).toFixed(1)+"MB").join(", "));
+      notify("Started: " + parts.length + " parts, " + fmtTime(dur) + " of audio. Keep the tab open.");
+      progress(0.25);
 
-        setStatus("Transcribing part " + (i+1) + " of " + n + "...");
-        const t = await groq(new Blob([data], {type:"audio/wav"}), "part"+i+".wav", key);
-        parts.push(t.trim());
-        log("Part " + (i+1) + "/" + n + " done.");
-        progress(0.1 + 0.88*((i+1)/n));
-      }
-      try{ await ffmpeg.deleteFile("input"); }catch(_){}
-      text = parts.join("\n\n");
+      const results = new Array(parts.length);
+      let doneCount = 0, nextIdx = 0;
+      const worker = async () => {
+        while (true){
+          const i = nextIdx++;
+          if (i >= parts.length) return;
+          const t = await groq(parts[i].blob, parts[i].name, key);
+          results[i] = t.trim();
+          doneCount++;
+          log("Part " + (i+1) + "/" + parts.length + " transcribed.");
+          setStatus("Transcribing... " + doneCount + " of " + parts.length + " done");
+          notify("Part " + doneCount + "/" + parts.length + " transcribed ✓");
+          progress(0.25 + 0.73*(doneCount/parts.length));
+          try{ localStorage.setItem("naskh_last", results.filter(Boolean).join("\n\n")); }catch(_){}
+        }
+      };
+      await Promise.all(Array.from({length: Math.min(UPLOAD_CONCURRENCY, parts.length)}, worker));
+      text = results.join("\n\n");
     }
 
     showTranscript(text.trim());
-    setStatus("Done.", "ok");
+    try{ localStorage.setItem("naskh_last", text.trim()); localStorage.setItem("naskh_last_ts", new Date().toLocaleString()); }catch(_){}
+    setStatus("Done in " + fmtClock((performance.now()-runT0)/1000) + ".", "ok");
     progress(1);
+    notify("Done ✓ Transcript is ready (took " + fmtClock((performance.now()-runT0)/1000) + "). Sending it as a file...");
+    await notifyTranscript(text.trim());
   }catch(err){
     console.error(err);
-    if (engineLog.length){
-      log("[engine] " + engineLog.slice(-6).join("\n[engine] "));
-    }
+    if (engineLog.length) log("[engine] " + engineLog.slice(-6).join("\n[engine] "));
     setStatus(readableError(err), "err");
+    notify("Failed: " + readableError(err));
   }finally{
+    runT0 = null;
     $("go").disabled = false;
+    try{ wakeLock && wakeLock.release(); }catch(_){}
+    wakeLock = null;
   }
 }
 
@@ -287,26 +326,111 @@ function loadScript(src){
   });
 }
 
+// Fetch with a live progress callback, return a same-origin blob URL.
+async function fetchBlobURL(url, type, onPct){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Could not load " + url + " (" + res.status + ")");
+  const total = +res.headers.get("Content-Length") || 0;
+  if (!res.body || !total || !onPct){
+    return URL.createObjectURL(new Blob([await res.arrayBuffer()], {type}));
+  }
+  const reader = res.body.getReader();
+  const chunks = []; let got = 0;
+  while (true){
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    onPct(Math.min(0.99, got/total));
+  }
+  return URL.createObjectURL(new Blob(chunks, {type}));
+}
+
 async function loadFFmpeg(){
   if (ffmpeg) return;
   if (typeof FFmpegWASM === "undefined") await loadScript(vendor("ffmpeg.js"));
+  log("Downloading audio engine (~31 MB, cached after the first time)...");
+  const wasmURL = await fetchBlobURL(vendor("ffmpeg-core.wasm"), "application/wasm", pct => {
+    setStatus("Downloading audio engine... " + Math.round(pct*100) + "%");
+    progress(0.02 + 0.18*pct);
+  });
+  const coreURL = await fetchBlobURL(vendor("ffmpeg-core.js"), "text/javascript");
   const inst = new FFmpegWASM.FFmpeg();
   inst.on("log", ({message}) => {
     engineLog.push(message);
     if (engineLog.length > 200) engineLog.shift();
   });
-  await inst.load({
-    coreURL: vendor("ffmpeg-core.js"),
-    wasmURL: vendor("ffmpeg-core.wasm"),
-  });
+  await inst.load({ coreURL, wasmURL });
   ffmpeg = inst;
   log("Audio engine ready.");
+}
+
+// Cut the compressed audio into parts with stream copy (no decode/encode) —
+// near-instant. Falls back to a mono AAC re-encode if the codec can't be
+// copied into an m4a container (e.g. WAV input) or a part comes out too big.
+async function listParts(){
+  return (await ffmpeg.listDir("/"))
+    .filter(f => !f.isDir && /^part\d+\.m4a$/.test(f.name))
+    .map(f => f.name).sort();
+}
+async function deleteParts(){
+  for (const n of await listParts()){ try{ await ffmpeg.deleteFile(n); }catch(_){} }
+}
+
+async function makeParts(dur){
+  const bitrate = chosenFile.size * 8 / dur; // average bps
+  let chunkSec = Math.floor(TARGET_MB * 1048576 * 8 / bitrate);
+  chunkSec = Math.max(300, Math.min(2700, chunkSec));
+
+  // exec() resolves with ffmpeg's exit code — it does NOT throw on failure.
+  let ret = await ffmpeg.exec([
+    "-nostdin","-y","-i","input","-vn","-c","copy",
+    "-f","segment","-segment_time",String(chunkSec),"-reset_timestamps","1",
+    "part%03d.m4a"
+  ]);
+  // A copy should come out roughly the size of the input; anything less means
+  // the codec couldn't be copied into m4a (e.g. WAV input) and we re-encode.
+  let ok = ret === 0;
+  if (ok){
+    let total = 0;
+    for (const n of await listParts()) total += (await ffmpeg.readFile(n)).length;
+    ok = total >= chosenFile.size * 0.5;
+  }
+  if (!ok){
+    await deleteParts();
+    log("Fast cut isn't possible for this format — converting to compact mono AAC instead.");
+    setStatus("Converting (this one takes longer)...");
+    ret = await ffmpeg.exec([
+      "-nostdin","-y","-i","input","-vn","-ac","1","-ar","16000","-c:a","aac","-b:a","48k",
+      "-f","segment","-segment_time","2700","-reset_timestamps","1",
+      "part%03d.m4a"
+    ]);
+    if (ret !== 0) throw new Error("The audio engine could not convert this file.");
+  }
+
+  const names = await listParts();
+  if (!names.length) throw new Error("Splitting produced no parts.");
+
+  const parts = [];
+  for (const name of names){
+    let data = await ffmpeg.readFile(name);
+    if (data.length > 24*1024*1024){
+      log(name + " is over the upload cap — shrinking it to mono AAC.");
+      const r = await ffmpeg.exec(["-nostdin","-y","-i",name,"-vn","-ac","1","-ar","16000","-c:a","aac","-b:a","48k","re.m4a"]);
+      if (r !== 0) throw new Error("Could not shrink an oversized part.");
+      data = await ffmpeg.readFile("re.m4a");
+      try{ await ffmpeg.deleteFile("re.m4a"); }catch(_){}
+    }
+    if (data.length < 1024) throw new Error("A converted part came out empty — the file may be corrupted.");
+    parts.push({ name, blob: new Blob([data], {type:"audio/mp4"}) });
+    try{ await ffmpeg.deleteFile(name); }catch(_){}
+  }
+  try{ await ffmpeg.deleteFile("input"); }catch(_){}
+  return parts;
 }
 
 async function getDurationSeconds(file){
   const d = await getDurationFromElement(file);
   if (isFinite(d) && d > 0) return d;
-  // Fallback: let ffmpeg probe the file and read Duration from its log.
   log("Browser couldn't read the length; asking the engine...");
   engineLog = [];
   try{ await ffmpeg.exec(["-nostdin","-i","input"]); }catch(_){ /* probe always "fails" */ }
@@ -329,6 +453,10 @@ function fmtTime(sec){
   sec = Math.round(sec);
   const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
   return (h? h+"h " : "") + m + "m " + s + "s";
+}
+function fmtClock(sec){
+  sec = Math.round(sec);
+  return Math.floor(sec/60) + ":" + String(sec%60).padStart(2,"0");
 }
 
 function showTranscript(text){
@@ -357,6 +485,18 @@ $("download").addEventListener("click", ()=>{
   a.click();
   URL.revokeObjectURL(a.href);
 });
+
+// Restore saved ntfy code and, if a previous run finished, its transcript.
+try{
+  const savedTopic = localStorage.getItem("naskh_ntfy");
+  if (savedTopic) $("ntfy").value = savedTopic;
+  const last = localStorage.getItem("naskh_last");
+  if (last){
+    showTranscript(last);
+    log("Recovered the transcript from your last run" +
+        (localStorage.getItem("naskh_last_ts") ? " (" + localStorage.getItem("naskh_last_ts") + ")" : "") + ".");
+  }
+}catch(_){}
 </script>
 </body>
 </html>
