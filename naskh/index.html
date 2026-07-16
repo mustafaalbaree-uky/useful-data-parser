@@ -157,16 +157,17 @@
 
   <footer>
     Uses Whisper large-v3 for best Arabic accuracy. Files under ~24 MB are sent whole;<br>
-    longer ones are cut into parts without re-encoding, so splitting takes seconds.
+    longer ones are cut into parts without re-encoding, so splitting takes seconds.<br>
+    Finished parts are remembered — if anything dies, Transcribe again resumes where it left off.
   </footer>
 </div>
 
 <script>
 const qp = new URLSearchParams(location.search);
 const DIRECT_LIMIT = qp.has("direct") ? +qp.get("direct") : 24 * 1024 * 1024;
-const TARGET_MB    = qp.has("target") ? +qp.get("target") : 20;  // aim per part, under Groq's 25 MB cap
+const TARGET_MB    = qp.has("target") ? +qp.get("target") : 12;  // per part; smaller = faster retries on flaky uploads
 const MODEL = "whisper-large-v3";
-const UPLOAD_CONCURRENCY = 2;
+const MAX_ATTEMPTS = 6;
 
 // ffmpeg.wasm 0.12 single-threaded core: no SharedArrayBuffer, low memory,
 // served from this site's own vendor/ folder (no CDN, no CORS).
@@ -185,8 +186,14 @@ window.addEventListener("unhandledrejection", e => {
   const r = e.reason;
   log("[promise error] " + (r && r.message ? r.message : String(r)));
 });
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden && runT0) log("Tab went to background — iOS may pause the work until you come back.");
+document.addEventListener("visibilitychange", async () => {
+  if (!runT0) return;
+  if (document.hidden){
+    log("Tab went to background — iOS pauses the work until you come back. It resumes automatically.");
+  } else {
+    log("Back in the foreground — resuming.");
+    if (!wakeLock) try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(_){}
+  }
 });
 
 $("file").addEventListener("change", e => {
@@ -205,6 +212,11 @@ function elapsed(){ return runT0 ? "[" + fmtClock((performance.now()-runT0)/1000
 function setStatus(msg, kind){ const s=$("status"); s.textContent=msg; s.className="status"+(kind?" "+kind:""); }
 function log(line){ const l=$("log"); l.textContent += (l.textContent?"\n":"") + elapsed() + line; l.scrollTop=l.scrollHeight; }
 function progress(p){ $("barWrap").style.display="block"; $("bar").style.width=Math.round(p*100)+"%"; }
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(_){} },
+  del(k){ try{ localStorage.removeItem(k); }catch(_){} },
+};
 
 // ---- ntfy push notifications (optional) ----
 function ntfyTopic(){ return $("ntfy").value.trim().replace(/[^\w.~-]/g, ""); }
@@ -233,15 +245,16 @@ async function run(){
   $("log").textContent = "";
   $("out").classList.remove("show");
   runT0 = performance.now();
+  setStatus("Starting...");
   progress(0.02);
   try{ wakeLock = await navigator.wakeLock.request("screen"); log("Screen wake-lock on — the phone won't sleep while working."); }catch(_){}
 
+  let results = null, partsTotal = 0, fileTag = null;
   try{
     let text;
     if (chosenFile.size <= DIRECT_LIMIT){
-      setStatus("Sending the whole file to Groq...");
       log("File is small enough to send in one request.");
-      text = await groq(chosenFile, chosenFile.name, key);
+      text = await groqWithRetry(chosenFile, chosenFile.name, key, "the file");
       progress(1);
     } else {
       setStatus("Loading audio engine...");
@@ -255,33 +268,43 @@ async function run(){
 
       setStatus("Cutting into parts (no re-encoding)...");
       const parts = await makeParts(dur);
+      engineLog = []; // cutting succeeded; don't let its log tail pollute later errors
       log("Ready to transcribe " + parts.length + " part(s): " +
           parts.map(p => (p.blob.size/1048576).toFixed(1)+"MB").join(", "));
-      notify("Started: " + parts.length + " parts, " + fmtTime(dur) + " of audio. Keep the tab open.");
       progress(0.25);
 
-      const results = new Array(parts.length);
-      let doneCount = 0, nextIdx = 0;
-      const worker = async () => {
-        while (true){
-          const i = nextIdx++;
-          if (i >= parts.length) return;
-          const t = await groq(parts[i].blob, parts[i].name, key);
-          results[i] = t.trim();
-          doneCount++;
-          log("Part " + (i+1) + "/" + parts.length + " transcribed.");
-          setStatus("Transcribing... " + doneCount + " of " + parts.length + " done");
-          notify("Part " + doneCount + "/" + parts.length + " transcribed ✓");
-          progress(0.25 + 0.73*(doneCount/parts.length));
-          try{ localStorage.setItem("naskh_last", results.filter(Boolean).join("\n\n")); }catch(_){}
-        }
-      };
-      await Promise.all(Array.from({length: Math.min(UPLOAD_CONCURRENCY, parts.length)}, worker));
+      partsTotal = parts.length;
+      results = new Array(parts.length);
+      fileTag = "naskh_part:" + chosenFile.name + ":" + chosenFile.size + ":" + parts.length + ":";
+      let reused = 0;
+      for (let i=0;i<parts.length;i++){
+        if (store.get(fileTag+i)){ results[i] = store.get(fileTag+i); reused++; }
+      }
+      if (reused){
+        log("Found " + reused + "/" + parts.length + " part(s) already transcribed in a previous try — reusing them.");
+        notify("Resuming: " + reused + "/" + parts.length + " parts already done, " + (parts.length-reused) + " to go.");
+      } else {
+        notify("Started: " + parts.length + " parts, " + fmtTime(dur) + " of audio. Keep the tab open — updates will follow.");
+      }
+
+      let doneCount = reused;
+      for (let i=0;i<parts.length;i++){
+        if (results[i]) continue;
+        const label = "part " + (i+1) + "/" + parts.length;
+        results[i] = (await groqWithRetry(parts[i].blob, parts[i].name, key, label)).trim();
+        store.set(fileTag+i, results[i]);
+        doneCount++;
+        log("Part " + (i+1) + "/" + parts.length + " transcribed.");
+        notify("Part " + doneCount + "/" + parts.length + " transcribed ✓");
+        progress(0.25 + 0.73*(doneCount/parts.length));
+      }
       text = results.join("\n\n");
+      for (let i=0;i<parts.length;i++) store.del(fileTag+i);
     }
 
     showTranscript(text.trim());
-    try{ localStorage.setItem("naskh_last", text.trim()); localStorage.setItem("naskh_last_ts", new Date().toLocaleString()); }catch(_){}
+    store.set("naskh_last", text.trim());
+    store.set("naskh_last_ts", new Date().toLocaleString());
     setStatus("Done in " + fmtClock((performance.now()-runT0)/1000) + ".", "ok");
     progress(1);
     notify("Done ✓ Transcript is ready (took " + fmtClock((performance.now()-runT0)/1000) + "). Sending it as a file...");
@@ -290,7 +313,14 @@ async function run(){
     console.error(err);
     if (engineLog.length) log("[engine] " + engineLog.slice(-6).join("\n[engine] "));
     setStatus(readableError(err), "err");
-    notify("Failed: " + readableError(err));
+    const partial = results ? results.filter(Boolean) : [];
+    if (partial.length){
+      showTranscript(partial.join("\n\n"));
+      log("Showing the " + partial.length + "/" + partsTotal + " part(s) finished so far. " +
+          "They're saved — press Transcribe again and it continues from part " + (partial.length+1) + ".");
+    }
+    notify("Stopped: " + readableError(err) +
+      (partial.length ? " (" + partial.length + "/" + partsTotal + " parts are saved — reopen and press Transcribe to continue)" : ""));
   }finally{
     runT0 = null;
     $("go").disabled = false;
@@ -299,22 +329,76 @@ async function run(){
   }
 }
 
-async function groq(blob, filename, key){
-  const fd = new FormData();
-  fd.append("file", blob, filename);
-  fd.append("model", MODEL);
-  fd.append("language", "ar");
-  fd.append("response_format", "text");
-  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-    method:"POST",
-    headers:{ "Authorization":"Bearer " + key },
-    body: fd
+// ---- Groq upload with live progress + automatic retry ----
+function groqXHR(blob, filename, key, onPct){
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("file", blob, filename);
+    fd.append("model", MODEL);
+    fd.append("language", "ar");
+    fd.append("response_format", "text");
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "https://api.groq.com/openai/v1/audio/transcriptions");
+    xhr.setRequestHeader("Authorization", "Bearer " + key);
+    xhr.responseType = "text";
+    xhr.upload.onprogress = e => { if (e.lengthComputable && onPct) onPct(e.loaded, e.total); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response);
+      else {
+        const err = new Error("Groq " + xhr.status + ": " + String(xhr.response||"").slice(0,300));
+        err.status = xhr.status;
+        err.body = String(xhr.response||"");
+        reject(err);
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.onabort = () => reject(new Error("Upload was interrupted"));
+    xhr.send(fd);
   });
-  if(!res.ok){
-    const body = await res.text().catch(()=> "");
-    throw new Error("Groq " + res.status + ": " + body.slice(0,300));
+}
+
+async function groqWithRetry(blob, filename, key, label){
+  for (let attempt=1;;attempt++){
+    try{
+      const t0 = performance.now();
+      const res = await groqXHR(blob, filename, key, (loaded, total) => {
+        const secs = Math.max((performance.now()-t0)/1000, 0.5);
+        const mbps = loaded/1048576/secs;
+        const left = mbps > 0.01 ? (total-loaded)/1048576/mbps : 0;
+        setStatus("Uploading " + label + ": " + Math.round(100*loaded/total) + "% · " +
+                  mbps.toFixed(1) + " MB/s · ~" + fmtClock(left) + " left");
+      });
+      setStatus("Waiting for " + label + "'s transcript...");
+      return res;
+    }catch(err){
+      const st = err.status || 0;
+      if (st && st !== 429 && st < 500) throw err;            // wrong key, too large, etc — retrying won't help
+      if (attempt >= MAX_ATTEMPTS) throw err;
+      let wait = Math.min(30, Math.pow(2, attempt) * 2);       // network / 5xx: 4s, 8s, 16s, 30s...
+      if (st === 429){
+        wait = parseRetrySeconds(err.body) || 60;
+        wait = Math.min(wait + 2, 900);
+        log("Groq rate limit on " + label + " — waiting " + fmtClock(wait) + " then continuing. Normal for long recordings on the free tier.");
+        notify("Rate limit — pausing " + fmtClock(wait) + ", then continuing automatically.");
+      } else {
+        log(label + " upload failed (" + (st || "network") + "). Retrying — attempt " + (attempt+1) + "/" + MAX_ATTEMPTS + ".");
+      }
+      await countdown(wait, label);
+    }
   }
-  return await res.text();
+}
+
+function parseRetrySeconds(body){
+  const m = String(body||"").match(/try again in (?:(\d+)m)?([\d.]+)s/i);
+  if (!m) return 0;
+  return (+(m[1]||0))*60 + Math.ceil(+m[2]);
+}
+
+async function countdown(sec, label){
+  for (let s = Math.ceil(sec); s > 0; s--){
+    setStatus("Retrying " + label + " in " + fmtClock(s) + "...");
+    await new Promise(r => setTimeout(r, 1000));
+  }
 }
 
 function loadScript(src){
@@ -469,7 +553,7 @@ function readableError(err){
   const m = String(err && err.message || err);
   if (m.includes("401")) return "Groq rejected the key. Check that it is correct.";
   if (m.includes("Could not load")) return "Could not download the audio engine. Check your connection or VPN, then retry.";
-  if (m.includes("Failed to fetch")) return "Network blocked a request. Try toggling your VPN and retry.";
+  if (m.includes("Failed to fetch") || m.includes("Network error")) return "Network problem during upload — finished parts are saved, press Transcribe to continue.";
   if (/out of memory|allocat/i.test(m)) return "The phone ran out of memory. Close other tabs and try again.";
   return m;
 }
