@@ -117,7 +117,7 @@ tr.table-row { cursor: pointer; }
 tr.table-row:hover td { background: rgba(91,157,255,0.18) !important; }
 td.cell-unverified { background: rgba(91,157,255,0.13) !important; }
 
-/* verify screen — two-column layout */
+/* verify screen: two column layout */
 .verify-topbar-meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .verify-outer { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .verify-progress-wrap { height: 4px; background: var(--panel2); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
@@ -467,13 +467,13 @@ body.experimental-on .topbar-title::after { content: ' • EXPERIMENTAL'; color:
     <button class="modal-close" onclick="document.getElementById('howToModal').classList.remove('open')">&times;</button>
     <h2>How to use</h2>
     <ol>
-      <li><strong>New Project</strong> — click New Project, select one or more PDF files, give the project a name, and click Process PDF. All entries are extracted automatically.</li>
-      <li><strong>Add PDF</strong> — open a project and click <em>+ Add PDF</em> in the topbar to append entries from additional PDF files.</li>
-      <li><strong>Table view</strong> — shows all extracted entries. Blue-highlighted cells have unverified fields. Click any row to open the Verification view for that entry.</li>
-      <li><strong>Verification view</strong> — review each highlighted field. Edit the value if needed, then click <em>Verify</em> to confirm it. Use ◄ ► to move between entries.</li>
-      <li><strong>View in PDF</strong> — click this button to render all pages for the current report. The PDF is cached for the session after the first pick.</li>
-      <li><strong>Export</strong> — use <em>Copy Table (TSV)</em> to copy all rows for pasting into a spreadsheet, or <em>Download CSV</em> to save a file.</li>
-      <li><strong>Classic Mode</strong> — available from the main menu for manual single-entry parsing without the project system.</li>
+      <li><strong>New Project.</strong> Click New Project, select one or more PDF files, give the project a name, and click Process PDF. All entries are extracted automatically.</li>
+      <li><strong>Add PDF.</strong> Open a project and click <em>+ Add PDF</em> in the topbar to append entries from additional PDF files.</li>
+      <li><strong>Table view.</strong> Shows all extracted entries. Blue highlighted cells have unverified fields. Click any row to open the Verification view for that entry.</li>
+      <li><strong>Verification view.</strong> Review each highlighted field. Edit the value if needed, then click <em>Verify</em> to confirm it. Use ◄ ► to move between entries.</li>
+      <li><strong>View in PDF.</strong> Click this button to render all pages for the current report. The PDF is cached for the session after the first pick.</li>
+      <li><strong>Export.</strong> Use <em>Copy Table (TSV)</em> to copy all rows for pasting into a spreadsheet, or <em>Download CSV</em> to save a file.</li>
+      <li><strong>Classic Mode.</strong> Available from the main menu for manual single entry parsing without the project system.</li>
     </ol>
   </div>
 </div>
@@ -550,7 +550,7 @@ function renderMenu() {
   const projects = getProjects();
   const list = document.getElementById('projectList');
   if (!projects.length) {
-    list.innerHTML = '<div class="menu-empty">No projects yet — click New Project to get started.</div>';
+    list.innerHTML = '<div class="menu-empty">No projects yet. Click New Project to get started.</div>';
     return;
   }
   list.innerHTML = '';
@@ -1073,7 +1073,7 @@ function renderVerifyView() {
   document.getElementById('verifyPrevBtn').disabled = i === 0;
   document.getElementById('verifyNextBtn').disabled = i === total - 1;
 
-  // info grid — editable inputs + source PDF display
+  // info grid: editable inputs plus source PDF display
   const grid = document.getElementById('verifyInfoGrid');
   grid.innerHTML = '';
   INFO_FIELDS.forEach(function(f) {
@@ -1114,7 +1114,7 @@ function renderVerifyView() {
     cell.appendChild(lbl); cell.appendChild(inp);
     grid.appendChild(cell);
   });
-  // Source PDF — shown as small italic note under the View in PDF button (not a boxed/exported cell)
+  // Source PDF, shown as a small italic note under the View in PDF button (not a boxed or exported cell)
   const srcName = (proj.rowSources || [])[i] || proj.pdfName || '';
   const srcEl = document.getElementById('verifySourcePdf');
   if (srcEl) { srcEl.textContent = srcName ? 'Source PDF: ' + srcName : ''; srcEl.title = srcName; }
@@ -1134,7 +1134,7 @@ function renderVerifyView() {
   } else {
     narrEl.className = 'verify-empty-text'; narrEl.textContent = 'No supporting text for this entry.';
   }
-  // PDF overlay is NOT touched here — persists across verify/edit clicks
+  // PDF overlay is NOT touched here. It persists across verify and edit clicks
 
   // Auto-render the detected diagram page under supporting text
   renderDiagramForEntry();
@@ -1149,7 +1149,7 @@ function renderVerifyView() {
 function buildDiagramCard(canvas, pageNum) {
   const dWrap = document.createElement('div'); dWrap.className = 'diagram-page-wrap';
   const dBar = document.createElement('div'); dBar.className = 'diagram-page-bar';
-  const dLbl = document.createElement('span'); dLbl.textContent = 'Diagram – Page ' + pageNum;
+  const dLbl = document.createElement('span'); dLbl.textContent = 'Diagram, Page ' + pageNum;
   const dFs = document.createElement('button'); dFs.className = 'btn-sec'; dFs.textContent = '⛶ Fullscreen';
   let zoomed = false;
   function applyZoom() {
@@ -1263,7 +1263,7 @@ async function renderDiagramForEntry() {
     if ((proj.rowHasDiagram || [])[i]) {
       const msg = document.createElement('div');
       msg.style.cssText = 'color:var(--muted); font-size:13px; font-style:italic; padding:12px 0;';
-      msg.textContent = 'Diagram available — click "View in PDF" to load.';
+      msg.textContent = 'Diagram available. Click "View in PDF" to load.';
       container.appendChild(msg);
       panel.style.display = '';
     }
@@ -1316,7 +1316,7 @@ function navigateVerify(delta) {
   clearPdfViewer();
   APP.verifyIndex = next;
   renderVerifyView();
-  // Cache persists per-index; nothing to clear here — expRenderPanel re-renders cached results automatically.
+  // Cache persists per index. Nothing to clear here, because expRenderPanel rerenders cached results automatically.
 }
 
 // ── PDF overlay viewer ────────────────────────────────────────────────────────
@@ -1688,11 +1688,11 @@ function parseAndAdd() {
 }
 async function pasteReport() {
   try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('input').value = t; saveFormState(); } }
-  catch(e) { alert('Clipboard access denied — paste manually.'); }
+  catch(e) { alert('Clipboard access denied. Paste manually.'); }
 }
 async function pasteCoord() {
   try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('coordInput').value = t; saveFormState(); } }
-  catch(e) { alert('Clipboard access denied — paste manually.'); }
+  catch(e) { alert('Clipboard access denied. Paste manually.'); }
 }
 function clearInput() {
   document.getElementById('input').value = '';
@@ -1916,7 +1916,7 @@ function inferCollisionInfo(units, ctx) {
     const straightUnit = sorted.find(u => /GOING STRAIGHT/i.test(u.action));
     if (signalViolation) {
       // A red-light / stop-sign violation at an intersection is an angle /
-      // perpendicular crash — NOT head-on, even though travel dirs read opposite.
+      // perpendicular crash, NOT head on, even though travel dirs read opposite.
       inferredType = 'Angle';
       notes = inferNotesFallback(sorted);
     } else if (ltUnit && straightUnit) {
@@ -2004,7 +2004,7 @@ async function processPdfForProject(file, statusEl) {
   try { pdf = await pdfjsLib.getDocument({ url }).promise; }
   catch(e) { statusEl.textContent = 'Error loading PDF: ' + e.message; URL.revokeObjectURL(url); return null; }
 
-  // Cache PDF in session map (keyed by filename) — revoking immediately after is fine since getDocument holds the data
+  // Cache PDF in session map (keyed by filename). Revoking immediately after is fine since getDocument holds the data
   SESSION.pdfs[file.name] = pdf; SESSION.pdfProjectId = APP.projectId;
 
   const pages = [];
@@ -2069,7 +2069,7 @@ async function processPdfForProject(file, statusEl) {
     }
   }
 
-  statusEl.textContent = 'Done — ' + rows.length + ' entr' + (rows.length !== 1 ? 'ies' : 'y') + ' found.';
+  statusEl.textContent = 'Done. ' + rows.length + ' entr' + (rows.length !== 1 ? 'ies' : 'y') + ' found.';
   return { rows, narrative, reportPages, rowHasDiagram };
 }
 
@@ -2119,11 +2119,11 @@ function legacyParseAndAdd() {
 }
 async function legacyPasteReport() {
   try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('linput').value = t; saveLegacyState(); } }
-  catch(e) { alert('Clipboard access denied — paste manually.'); }
+  catch(e) { alert('Clipboard access denied. Paste manually.'); }
 }
 async function legacyPasteCoord() {
   try { const t = await navigator.clipboard.readText(); if (t.trim()) { document.getElementById('lcoordInput').value = t; saveLegacyState(); } }
-  catch(e) { alert('Clipboard access denied — paste manually.'); }
+  catch(e) { alert('Clipboard access denied. Paste manually.'); }
 }
 function legacyClearInput() {
   document.getElementById('linput').value = '';
@@ -2255,7 +2255,7 @@ document.getElementById('lcoordInput').addEventListener('input', saveLegacyState
 document.getElementById('lpageNum').addEventListener('input', saveLegacyState);
 
 /* ════════════════════════════════════════════════════════════════════════════
-   EXPERIMENTAL — AI Verify mode (Round 10)
+   EXPERIMENTAL: AI Verify mode (Round 10)
    Fully isolated, toggle-gated layer. When APP.experimental is false, none of
    this renders or runs (the only hook in the classic flow is expRenderPanel(),
    which returns immediately when off). Toggle with Ctrl+Shift+U.
@@ -2313,7 +2313,7 @@ function expToast(msg) {
   t._timer = setTimeout(function() { t.classList.remove('show'); }, 1800);
 }
 
-// Per-project roadway conventions editor — two sections:
+// Per project roadway conventions editor, two sections:
 //   1. Direction mappings: relative term (inbound/outbound) → compass code
 //   2. General equivalences: "when narrative says X, treat it as Y" (road name aliases, etc.)
 function expEditConventions() {
@@ -2452,7 +2452,7 @@ function expEditConventions() {
     EXP.cache = {};
     modal.remove();
     if (typeof expRenderPanel === 'function') expRenderPanel();
-    expToast('Conventions saved — re-analyze to apply');
+    expToast('Conventions saved, reanalyze to apply');
   };
   right.appendChild(cancel); right.appendChild(save);
   actions.appendChild(resetBtn); actions.appendChild(right);
@@ -2482,7 +2482,7 @@ function expRenderPanel() {
   head.innerHTML = '<span class="exp-title">✨ AI Verify <span class="exp-tag">experimental</span></span>';
   panel.appendChild(head);
 
-  // Key status row (no persistent input — key set once via modal)
+  // Key status row (no persistent input, key set once via modal)
   const keyStatus = document.createElement('div');
   keyStatus.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
   const hasKey = !!(localStorage.getItem('dp_anthropic_key') || '').trim();
@@ -2596,12 +2596,12 @@ function expGetConventions(proj) {
 function expConventionLines(proj) {
   const conv = expGetConventions(proj).filter(function(c) { return c && c.term && c.dir; });
   if (!conv.length) return [];
-  const lines = ['', 'ROADWAY CONVENTIONS (defined by the analyst for this corridor — these are the ONLY conventions that exist):'];
+  const lines = ['', 'ROADWAY CONVENTIONS (defined by the analyst for this corridor. These are the ONLY conventions that exist):'];
   conv.forEach(function(c) {
     lines.push('- "' + c.term + '" means ' + c.dir + '.');
   });
   lines.push('Use these to translate relative terms in the narrative (e.g. "inbound"/"outbound") into NB/SB/EB/WB.');
-  lines.push('CRITICAL: Apply each convention EXACTLY as written above — do not flip or reinterpret it.');
+  lines.push('CRITICAL: Apply each convention EXACTLY as written above. Do not flip or reinterpret it.');
   lines.push('Never cite a convention that is not in the list above, and never invent one. When your reasoning');
   lines.push('references a convention, restate it verbatim from the list (e.g. "convention: inbound means SB").');
   lines.push('If the narrative gives only a relative term NOT covered by a convention and you cannot otherwise');
@@ -2612,9 +2612,9 @@ function expConventionLines(proj) {
 function expEquivalenceLines(proj) {
   const eq = (proj && Array.isArray(proj.equivalences)) ? proj.equivalences.filter(function(e) { return e && e.from && e.to; }) : [];
   if (!eq.length) return [];
-  const lines = ['', 'TERM EQUIVALENCES (defined by the analyst — treat both sides as the same thing):'];
+  const lines = ['', 'TERM EQUIVALENCES (defined by the analyst, treat both sides as the same thing):'];
   eq.forEach(function(e) {
-    lines.push('- "' + e.from + '" and "' + e.to + '" refer to the same road / location / entity. The PARSED VALUE already uses the analyst\'s preferred canonical naming — it is the authoritative form. If the narrative uses the alternate name, that means the parsed value is ALREADY CORRECT (verdict "ok"). NEVER suggest changing the parsed value to the narrative\'s alternate phrasing. The equivalence suppresses disagreement in both directions: whichever side the narrative uses, the parsed value is fine as-is.');
+    lines.push('- "' + e.from + '" and "' + e.to + '" refer to the same road / location / entity. The PARSED VALUE already uses the analyst\'s preferred canonical naming, so it is the authoritative form. If the narrative uses the alternate name, that means the parsed value is ALREADY CORRECT (verdict "ok"). NEVER suggest changing the parsed value to the narrative\'s alternate phrasing. The equivalence suppresses disagreement in both directions: whichever side the narrative uses, the parsed value is fine as-is.');
   });
   return lines;
 }
@@ -2626,7 +2626,7 @@ function expPrimaryRoadLines(proj) {
   lines.push('Primary corridor road(s), highest priority first:');
   roads.forEach(function(r, idx) { lines.push('  ' + (idx + 1) + '. ' + r); });
   lines.push('When an intersection includes one of these primary roads, that road MUST be listed FIRST,');
-  lines.push('formatted as "PRIMARY ROAD & CROSS STREET" — regardless of how the narrative or the parser ordered them.');
+  lines.push('formatted as "PRIMARY ROAD & CROSS STREET", regardless of how the narrative or the parser ordered them.');
   lines.push('If BOTH streets are primary roads, the one higher in the list above comes first.');
   lines.push('This is purely an ORDERING preference: if the parsed value already names the right two streets but');
   lines.push('lists them in the wrong order, return verdict "change" with the SAME two streets reordered so the');
@@ -2646,14 +2646,14 @@ function expBuildSystemPrompt() {
   return [
     'You are a crash-report verification assistant for a traffic-records analyst.',
     'You are given an officer\'s free-text narrative plus fields a parser already extracted.',
-    'For EACH field requested, return an explicit verdict — never stay silent on a field.',
+    'For EACH field requested, return an explicit verdict. Never stay silent on a field.',
     '',
     'For every field, pick exactly one verdict:',
     '- "ok"      → the parsed value is correct and supported by the narrative. Echo the value in "value".',
     '- "change"  → the parsed value is wrong or incomplete; put the corrected value in "value".',
     '- "unknown" → the narrative does not contain enough information to determine this field.',
     '              For a blank unit direction that truly cannot be inferred, use verdict "change"',
-    '              with value "N/A" (N/A is a real, correct answer — blank is never acceptable).',
+    '              with value "N/A" (N/A is a real, correct answer, and blank is never acceptable).',
     '              Reserve "unknown" for cases where you genuinely cannot tell even an N/A.',
     '',
     'Hard rules:',
@@ -2661,14 +2661,14 @@ function expBuildSystemPrompt() {
     '- For verdict "ok" or "change" you MUST include a verbatim quote span from the narrative that justifies it.',
     '- For "unknown" the quote may be empty; explain briefly in "reasoning" why it cannot be determined.',
     '- Each field has a STRICT allowed format below. The "value" must conform to that format and NOTHING else.',
-    '  Put all the explanation, injuries, citations, and context in "reasoning" — NEVER in "value".',
+    '  Put all the explanation, injuries, citations, and context in "reasoning", NEVER in "value".',
     '',
     'ALLOWED VALUE FORMATS (do not deviate):',
     '- u1, u2, u3, u4 (unit direction): EXACTLY one of these tokens and nothing more: NB, SB, EB, WB, N/A.',
-    '    A direction is a single travel direction — NOT injuries, citations, or any description.',
+    '    A direction is a single travel direction, NOT injuries, citations, or any description.',
     '    WRONG: "SB, DUI, arm injury, cited for DUI...". RIGHT: "SB".',
     '- collisionType: EXACTLY one item from this list: ' + vocab + '. No new types; pick the closest.',
-    '- intersection: EXACTLY one of two forms — (a) the cross-street name formatted as "STREET A & STREET B",',
+    '- intersection: EXACTLY one of two forms. Either (a) the cross street name formatted as "STREET A & STREET B",',
     '    e.g. "N BROADWAY & W 7TH ST", or (b) the literal letter "N" if the crash was NOT at an intersection.',
     '    Do NOT write a description, address, parking lot name, or any other free-form location text.',
     '    WRONG: "parking lot of Speedway at 716 N Broadway". WRONG: "near Transylvania University".',
@@ -2677,7 +2677,7 @@ function expBuildSystemPrompt() {
     '- notes: ONE short, terse, fault-oriented sentence (max ~20 words). e.g. "U1 failed to yield to U2".',
     '    Good note: "U1 ran red light, struck U2". Bad note: a long multi-clause dump of every detail.',
     '',
-    'COLLISION GEOMETRY (physically sound inferences you MAY use — the collision type is a known fact):',
+    'COLLISION GEOMETRY (physically sound inferences you MAY use, since the collision type is a known fact):',
     '- Rear-end: the striking and struck vehicles travel the SAME direction. In a chain (U1 rear-ends U2,',
     '  U2 into U3), ALL units in that chain share ONE travel direction.',
     '- Head-on: the two units travel OPPOSITE directions.',
@@ -2685,11 +2685,11 @@ function expBuildSystemPrompt() {
     'Use these to PROPAGATE a direction: if ANY one unit in the group has a direction you can establish (from an',
     'explicit stated travel direction OR a defined roadway convention), assign the geometry-consistent direction',
     'to the other involved units, and say so in reasoning (e.g. "rear-end ⇒ U1 same direction as U2 = SB").',
-    'Do NOT infer a compass direction from incidental geography — which way a landmark, crosswalk, university, or',
+    'Do NOT infer a compass direction from incidental geography, meaning which way a landmark, crosswalk, university, or',
     'building lies is NOT evidence of travel direction. Anchor ONLY on an explicitly stated direction or a defined',
-    'convention. If no unit in the group can be anchored, set them ALL to "unknown" (consistently) — never guess.',
+    'convention. If no unit in the group can be anchored, set them ALL to "unknown" (consistently). Never guess.',
     'PARKING / STATIONARY RULE: If a unit is described as parked, in a parking lot, in a driveway, or not',
-    'actively traveling on the roadway, its travel direction is N/A — regardless of which way it was facing.',
+    'actively traveling on the roadway, its travel direction is N/A, regardless of which way it was facing.',
     'Facing direction in a parking lot is not a travel direction on the road.'
   ].concat(convLines).concat(eqLines).concat(primaryLines).concat([
     '',
@@ -2817,7 +2817,7 @@ function expRenderSuggestions(i, parsed) {
 
     const val = document.createElement('div'); val.className = 'exp-sugg-value';
     if (it.verdict === 'ok') {
-      val.innerHTML = '<span class="exp-ok">✓ Correct</span> — <span class="exp-new">' + expEsc(it.value || it.cur || '(blank)') + '</span>';
+      val.innerHTML = '<span class="exp-ok">✓ Correct</span>: <span class="exp-new">' + expEsc(it.value || it.cur || '(blank)') + '</span>';
     } else if (it.verdict === 'change') {
       val.innerHTML = '<span class="exp-cur">' + expEsc(it.cur || '(blank)') + '</span> → <span class="exp-new">' + expEsc(it.value || '(blank)') + '</span>';
     } else {
